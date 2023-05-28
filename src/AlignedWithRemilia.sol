@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: VPL
 pragma solidity ^0.8.20;
 
 import "solady/tokens/ERC721.sol";
