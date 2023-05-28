@@ -18,7 +18,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/Zodomo/AlignedWithRemilia">
-    <img src="img/smiley.png" alt="Remilia Logo" width="80" height="80">
+    <img src="img/smiley.png" alt="Remilia Logo" width="125" height="125">
   </a>
 
 <h3 align="center">Remilia Alignment Module</h3>
