@@ -64,9 +64,9 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-This is an abstract contract intended to align NFT collections with Remilia's vision for Network Spirituality by deepening Milady liquidity using mint fees.<br />
-It is designed such that the developer (or other recipient) can receive up to 50% of the mint fees, while the remainder is dedicated to deepening Milady NFTX liquidity.<br />
-Once $MILADYWETH LP tokens are staked, they are to be timelocked forever/permanently. True alignment means this liquidity shouldn't ever be withdrawn.<br />
+This is an abstract contract intended to align NFT collections with Remilia's vision for Network Spirituality by deepening Milady liquidity using mint fees. 
+It is designed such that the developer (or other recipient) can receive up to 50% of the mint fees, while the remainder is dedicated to deepening Milady NFTX liquidity. 
+Once $MILADYWETH LP tokens are staked, they are to be timelocked forever/permanently. True alignment means this liquidity shouldn't ever be withdrawn. 
 $xMILADYWETH is timelocked instead of being burned, as LP rewards should be claimable.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -99,7 +99,7 @@ AlignedWithRemilia was designed using Foundry, so I recommend familiarizing your
 
 1. Set up your NFT project using Foundry
    ```sh
-   forge init {ProjectName}
+   forge init ProjectName
    ```
 2. Install AlignedWithRemilia
    ```sh
