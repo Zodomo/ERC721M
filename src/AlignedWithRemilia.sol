@@ -7,6 +7,7 @@ import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
 import "v2-core/interfaces/IUniswapV2Pair.sol";
 import "v2-periphery/interfaces/IUniswapV2Router02.sol";
+import "./UniswapAdd.sol";
 
 interface INFTXLPStaking {
     function deposit(uint256 vaultId, uint256 amount) external;
@@ -122,11 +123,15 @@ abstract contract AlignedWithRemilia is ERC721 {
 
         // Retrieve current MILADYWETH balance
         uint256 miladywethBal = checkBalanceMILADYWETH();
+
+        /*
         // Approve SushiSwap router to use MILADY
         _nftx_MILADY.approve(address(_router), _miladyAmount);
-
         // Add MILADY and ETH to MILADY/WETH liquidity pool
         _router.addLiquidityETH{value: _ethAmount}(address(_nftx_MILADY), _miladyAmount, 0, 0, address(this), block.timestamp + 1);
+        */
+        // Use gas-efficient UniswapAdd contract to add liquidity
+        new UniswapAdd{ value: _ethAmount }(address(_nftx_MILADY));
 
         // Check updated MILADYWETH balance
         uint256 miladywethNewBal = checkBalanceMILADYWETH() - miladywethBal;
@@ -180,7 +185,7 @@ abstract contract AlignedWithRemilia is ERC721 {
         // Stake MILADY/WETH LP tokens
         uint256 miladyLiqStaked = _stakeMILADYWETH(miladyLiquidity);
 
-        // Permanently lock xMILADYWETH
+        // TODO: Permanently lock xMILADYWETH
         _timelockxMILADYWETH(miladyLiqStaked);
     }
 
@@ -200,7 +205,7 @@ abstract contract AlignedWithRemilia is ERC721 {
     function _purchaseSpecificMiladyNFT(uint256 _tokenId) internal {
         // Same as _purchaseFloorMiladyNFT just focused on a specific tokenId
     }
-    // TODO: Stake Milady NFTs for MILADY
+    // TODO: Stake Milady NFTs for xMILADY
     function _stakeMiladyNFT(uint256 _tokenId) internal {
         // Step 1) Confirm _tokenId ownership
         // Step 2) Provide approval to staking contract
