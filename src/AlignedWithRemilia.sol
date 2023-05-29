@@ -138,7 +138,23 @@ abstract contract AlignedWithRemilia is ERC721 {
         path[0] = _router.WETH();
         path[1] = address(_nftx_MILADY);
 
-        // TODO: Swap tokens for ETH
+        // Approve Uniswap router to spend the tokens
+        _nftx_MILADY.approve(address(_router), _amount);
+        // Check contract's ETH balance
+        uint256 ethBal = address(this).balance;
+
+        // Make the swap
+        _router.swapExactTokensForETHSupportingFeeOnTransferTokens(_amount, 0, path, msg.sender, block.timestamp);
+        // Calculate difference
+        uint256 ethDiff = ethBal - address(this).balance;
+
+        // Verify swap completed for non-zero amount
+        if (ethDiff == 0) { revert SwapFailed(); }
+        // Update pooled tithe balance
+        pooledTithes += ethDiff;
+
+        // Return ETH swap amount
+        return (ethDiff);
     }
 
     // Add MILADY/WETH liquidity
@@ -157,6 +173,7 @@ abstract contract AlignedWithRemilia is ERC721 {
         _router.addLiquidityETH{value: _ethAmount}(address(_nftx_MILADY), _miladyAmount, 0, 0, address(this), block.timestamp + 1);
         */
         // Use gas-efficient UniswapAdd contract to add liquidity
+        // TODO: Investigate effects of eventual selfdestruct() deprecation as it is used here
         new UniswapAdd{ value: _ethAmount }(address(_nftx_MILADY));
 
         // Check updated MILADYWETH balance
@@ -169,7 +186,15 @@ abstract contract AlignedWithRemilia is ERC721 {
         return (miladywethNewBal);
     }
 
-    // TODO: Stake MILADY/WETH liquidity
+    // TODO: Add as much MILADY/WETH liquidity as possible
+    function _addAvailableLiquidityMILADYWETH() internal returns (uint256) {
+        // Step 1) Determine lesser balance value between MILADY and WETH balances
+        // Step 2) Add liquidity up to max of lesser balance
+        // Step 3) Confirm MILADYWETH balance increased
+        // Step 4) Return increase in MILADYWETH balance
+    }
+
+    // Stakes MILADYWETH in the NFTX LP staking contract
     function _stakeMILADYWETH(uint256 _amount) internal returns (uint256) {
         // Confirm amounts arent above balances
         if (_amount > checkBalanceMILADYWETH()) { revert Overdraft(); }
@@ -218,13 +243,6 @@ abstract contract AlignedWithRemilia is ERC721 {
         _lockxMILADYWETH(miladyLiqStaked);
     }
 
-    // TODO: Add as much MILADY/WETH liquidity as possible
-    function _addAvailableLiquidityMILADYWETH() internal returns (uint256) {
-        // Step 1) Determine lesser balance value between MILADY and WETH balances
-        // Step 2) Add liquidity up to max of lesser balance
-        // Step 3) Confirm MILADYWETH balance increased
-        // Step 4) Return increase in MILADYWETH balance
-    }
     // TODO: Purchase a floor Milady with pooled tithes
     function _purchaseFloorMiladyNFT() internal {
         // Step 1) Get Milady floor price from Blur
@@ -241,6 +259,7 @@ abstract contract AlignedWithRemilia is ERC721 {
     function _purchaseSpecificMiladyNFT(uint256 _tokenId) internal {
         // Same as _purchaseFloorMiladyNFT just focused on a specific tokenId
     }
+
     // TODO: Stake Milady NFTs for MILADY
     function _stakeMiladyNFT(uint256[] memory _tokenIds) internal {
         // Retrieve current MILADY balance
