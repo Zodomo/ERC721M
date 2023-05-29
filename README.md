@@ -26,6 +26,7 @@
   <p align="center">
     An abstract contract that can be inherited to align an ERC721 project with Remilia's Network Spirituality.
     <br />
+    ////////// THIS IS A WORK IN PROGRESS! NOT YET TESTED OR IN PRODUCTION! //////////
     <a href="https://github.com/Zodomo/AlignedWithRemilia/issues">Report Bug</a>
     ·
     <a href="https://github.com/Zodomo/AlignedWithRemilia/issues">Request Feature</a>
@@ -66,8 +67,9 @@
 
 This is an abstract contract intended to align NFT collections with Remilia's vision for Network Spirituality by deepening Milady liquidity using mint fees. 
 It is designed such that the developer (or other recipient) can receive up to 50% of the mint fees, while the remainder is dedicated to deepening Milady NFTX liquidity. 
-Once $MILADYWETH LP tokens are staked, they are to be timelocked forever/permanently. True alignment means this liquidity shouldn't ever be withdrawn. 
-$xMILADYWETH is timelocked instead of being burned, as LP rewards should be claimable.
+Once $MILADYWETH LP tokens are staked, they are to be locked permanently. True alignment means this liquidity shouldn't ever be withdrawn. 
+$xMILADYWETH is locked instead of being burned, as LP rewards should be claimable. 
+Liquidity rewards are locked if the dev's cut is >20\%. They are only withdrawable if dev takes <=20\%.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
