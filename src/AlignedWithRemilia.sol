@@ -8,6 +8,10 @@ import "openzeppelin/interfaces/IERC721.sol";
 import "v2-core/interfaces/IUniswapV2Pair.sol";
 import "v2-periphery/interfaces/IUniswapV2Router02.sol";
 
+interface INFTXLPStaking {
+    function deposit(uint256 vaultId, uint256 amount) external;
+}
+
 abstract contract AlignedWithRemilia is ERC721 {
 
     error Initialized();
@@ -33,25 +37,27 @@ abstract contract AlignedWithRemilia is ERC721 {
     IUniswapV2Pair constant internal _nftx_MILADYWETH = IUniswapV2Pair(0x15A8E38942F9e353BEc8812763fb3C104c89eCf4);
     IERC20 constant internal _nftx_xMILADYWETH = IERC20(0x6c6BCe43323f6941FD6febe8ff3208436e8e0Dc7);
     IUniswapV2Router02 internal _router = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+    INFTXLPStaking internal _nftxLPStaking = INFTXLPStaking(0x688c3E4658B5367da06fd629E41879beaB538E37);
 
     bool internal _alignmentInitialized; // Minting won't function until initialized
     address internal _devAddress; // Dev's address
     uint256 public devAllocation; // Percentage (0.0% to 50.0%) of dev's cut
 
     mapping(address => uint256) public tithes; // Tithes per user
+    mapping(address => uint256) public instantTithes; // Instant tithes to locked liquidity per user
     uint256 public titheTotal; // Total collected tithes
     uint256 public pooledTithes; // Current balance of ETH tithes
     uint256 public devBalance; // Current dev balance
 
     // Check Milady NFT balance
     function checkBalanceMiladyNFT() public view returns (uint256) { return (_miladyNFT.balanceOf(address(this))); }
-    // Check $MILADY balance
+    // Check MILADY balance
     function checkBalanceMILADY() public view returns (uint256) { return (_nftx_MILADY.balanceOf(address(this))); }
-    // Check $xMILADY balance
+    // Check xMILADY balance
     function checkBalancexMILADY() public view returns (uint256) { return (_nftx_xMILADY.balanceOf(address(this))); }
-    // Check $MILADYWETH balance
+    // Check MILADYWETH balance
     function checkBalanceMILADYWETH() public view returns (uint256) { return (_nftx_MILADYWETH.balanceOf(address(this))); }
-    // Check $xMILADYWETH balance
+    // Check xMILADYWETH balance
     function checkBalancexMILADYWETH() public view returns (uint256) { return (_nftx_xMILADYWETH.balanceOf(address(this))); }
 
     // Initialization function used to set dev's cut percentage (up to 50.0%)
@@ -66,6 +72,8 @@ abstract contract AlignedWithRemilia is ERC721 {
 
     // Change router address
     function _changeRouter(address _newRouter) internal { _router = IUniswapV2Router02(_newRouter); }
+    // Change NFTX LP Staking contract address
+    function _changeNFTXLPStaking(address _newStaking) internal { _nftxLPStaking = INFTXLPStaking(_newStaking); }
     // Change dev's address
     function _changeDevAddress(address _newAddress) internal {
         if (_newAddress == address(0)) { revert BadAddress(); }
@@ -92,16 +100,16 @@ abstract contract AlignedWithRemilia is ERC721 {
         path[0] = _router.WETH();
         path[1] = address(_nftx_MILADY);
 
-        // Retrieve $MILADY balance
+        // Retrieve MILADY balance
         uint256 miladyBal = checkBalanceMILADY();
-        // Swap half of msg.value for $MILADY
+        // Swap half of msg.value for MILADY
         _router.swapExactETHForTokens{value: amount}(0, path, address(this), block.timestamp + 1);
-        // Retrieve swapped $MILADY quantity
+        // Retrieve swapped MILADY quantity
         uint256 miladyNewBal = checkBalanceMILADY() - miladyBal;
         // Check that balance > 0 to ensure swap was successful
         if (miladyNewBal == 0) { revert SwapFailed(); }
 
-        // Return amount of $MILADY tokens received
+        // Return amount of MILADY tokens received
         emit MILADYPurchased(amount, miladyNewBal);
         return (miladyNewBal);
     }
@@ -112,15 +120,15 @@ abstract contract AlignedWithRemilia is ERC721 {
         if (_ethAmount > pooledTithes) { revert Overdraft(); }
         if (_miladyAmount > checkBalanceMILADY()) { revert Overdraft(); }
 
-        // Retrieve current $MILADYWETH balance
+        // Retrieve current MILADYWETH balance
         uint256 miladywethBal = checkBalanceMILADYWETH();
-        // Approve SushiSwap router to use $MILADY
+        // Approve SushiSwap router to use MILADY
         _nftx_MILADY.approve(address(_router), _miladyAmount);
 
-        // Add $MILADY and ETH to MILADY/WETH liquidity pool
+        // Add MILADY and ETH to MILADY/WETH liquidity pool
         _router.addLiquidityETH{value: _ethAmount}(address(_nftx_MILADY), _miladyAmount, 0, 0, address(this), block.timestamp + 1);
 
-        // Check updated $MILADYWETH balance
+        // Check updated MILADYWETH balance
         uint256 miladywethNewBal = checkBalanceMILADYWETH() - miladywethBal;
         // Confirm balance increased
         if (miladywethNewBal == 0) { revert StakeFailed(); }
@@ -131,17 +139,30 @@ abstract contract AlignedWithRemilia is ERC721 {
     }
 
     // TODO: Stake MILADY/WETH liquidity
-    function _stakeMILADYWETH(uint256 _amount) internal {
+    function _stakeMILADYWETH(uint256 _amount) internal returns (uint256) {
         // Confirm amounts arent above balances
         if (_amount > checkBalanceMILADYWETH()) { revert Overdraft(); }
+        // Check existing xMILADYWETH balance
+        uint256 xmiladywethBal = checkBalancexMILADYWETH();
 
-        // TODO: Staking
+        // Stake MILADYWETH in NFTX LP staking contract
+        _nftxLPStaking.deposit(392, _amount);
+
+        // Confirm xMILADYWETH balance increased
+        uint256 xmiladywethNewBal = checkBalancexMILADYWETH() - xmiladywethBal;
+        if (xmiladywethNewBal == 0) { revert StakeFailed(); }
 
         emit MILADYWETHStaked(_amount);
+        return (xmiladywethNewBal);
     }
 
-    // Converts ETH to $MILADYWETH LP and stakes it
-    function _convertAndStakeMILADYWETH(uint256 _amount) internal {
+    // TODO: Timelock xMILADYWETH
+    function _timelockxMILADYWETH(uint256 _amount) internal {
+        // Determine how to timelock staked MILADYWETH
+    }
+
+    // Converts ETH to MILADYWETH LP and stakes it
+    function _convertStakeLockMILADYWETH(uint256 _amount) internal {
         // Confirm _amount isn't above pooledTithes
         if (_amount > pooledTithes) { revert Overdraft(); }
 
@@ -150,14 +171,17 @@ abstract contract AlignedWithRemilia is ERC721 {
         // Calculate half of msg.value
         uint256 ethHalf = amount / 2;
 
-        // Convert half of msg.value to $MILADY
+        // Convert half of msg.value to MILADY
         uint256 miladyTokens = _convertETHtoMILADY(ethHalf);
 
-        // Add $MILADY and remaining half of msg.value to MILADY/WETH LP
+        // Add MILADY and remaining half of msg.value to MILADY/WETH LP
         uint256 miladyLiquidity = _addLiquidityMILADYWETH(ethHalf, miladyTokens);
 
         // Stake MILADY/WETH LP tokens
-        _stakeMILADYWETH(miladyLiquidity);
+        uint256 miladyLiqStaked = _stakeMILADYWETH(miladyLiquidity);
+
+        // Permanently lock xMILADYWETH
+        _timelockxMILADYWETH(miladyLiqStaked);
     }
 
     // TODO: Purchase a floor Milady with pooled tithes
@@ -176,25 +200,18 @@ abstract contract AlignedWithRemilia is ERC721 {
     function _purchaseSpecificMiladyNFT(uint256 _tokenId) internal {
         // Same as _purchaseFloorMiladyNFT just focused on a specific tokenId
     }
-    // TODO: Stake Milady NFTs for $MILADY
+    // TODO: Stake Milady NFTs for MILADY
     function _stakeMiladyNFT(uint256 _tokenId) internal {
         // Step 1) Confirm _tokenId ownership
         // Step 2) Provide approval to staking contract
         // Step 3) Stake NFT
     }
-    // TODO: Stake $MILADY
-    function _stakeMILADY(uint256 _amount) internal {
-        // Step 1) Confirm _amount doesn't exceed $MILADY balance
-        // Step 2) Stake $MILADY for $xMILADY at NFTX
-        // Step 3) Confirm $xMILADY received to validate successful staking
-    }
-    // TODO: Unstake $MILADY
-    // NOTE: NO MILADY NFT UNSTAKE FUNCTION IS NEEDED, MILADY LIQUIDITY SHALL DEEPEN AT ALL COSTS
-    function _unstakeMILADY(uint256 _amount) internal {
-        // Step 1) Confirm _amount doesn't exceed $xMILADY balance
-        // Step 2) Unstake/Burn $xMILADY for $MILADY
-        // Step 3) Confirm $MILADY balance increased
-        // Step 4) Confirm $xMILADY balance decreased
+    // TODO: Unstake Milady NFT
+    function _unstakeMiladyNFT(uint256 _amount) internal {
+        // Step 1) Confirm _amount doesn't exceed xMILADY balance
+        // Step 2) Unstake/Burn xMILADY for MILADY
+        // Step 3) Confirm MILADY balance increased
+        // Step 4) Confirm xMILADY balance decreased
     }
     // TODO: Claim NFTX staking rewards
     function _claimRewards() internal {
@@ -202,16 +219,12 @@ abstract contract AlignedWithRemilia is ERC721 {
         // Step 2) Claim rewards
         // Step 3) Confirm balance of those tokens increased
     }
-    // TODO: Timelock $xMILADYWETH
-    function _timelockMILADYWETH() internal {
-        // Determine how to timelock staked $MILADYWETH
-    }
     // TODO: Add as much MILADY/WETH liquidity as possible
     function _addAvailableLiquidityMILADYWETH() internal returns (uint256) {
-        // Step 1) Determine lesser balance value between $MILADY and $WETH balances
+        // Step 1) Determine lesser balance value between MILADY and WETH balances
         // Step 2) Add liquidity up to max of lesser balance
-        // Step 3) Confirm $MILADYWETH balance increased
-        // Step 4) Return increase in $MILADYWETH balance
+        // Step 3) Confirm MILADYWETH balance increased
+        // Step 4) Return increase in MILADYWETH balance
     }
 
     // Mint function handles separation of dev and ministry funds
@@ -232,7 +245,7 @@ abstract contract AlignedWithRemilia is ERC721 {
 
         // If tithe isn't being pooled, process it immediately
         if (_poolTithe == false) {
-            _convertAndStakeMILADYWETH(tithe);
+            _convertStakeLockMILADYWETH(tithe);
         }
         emit Tithe(msg.sender, tithe);
 
