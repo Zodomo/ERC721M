@@ -8,6 +8,7 @@ import "openzeppelin/interfaces/IERC721.sol";
 import "v2-core/interfaces/IUniswapV2Pair.sol";
 import "v2-periphery/interfaces/IUniswapV2Router02.sol";
 import "./UniswapAdd.sol";
+import "./UniswapV2LiquidityHelper.sol";
 import "./xTokenLocker.sol";
 
 interface INFTXVault {
@@ -21,6 +22,7 @@ abstract contract AlignedWithRemilia is ERC721 {
     error NotAligned();
     error SwapFailed();
     error MintFailed();
+    error LiquidityFailed();
     error StakeFailed();
     error TransferFailed();
     error ClaimFailed();
@@ -46,6 +48,9 @@ abstract contract AlignedWithRemilia is ERC721 {
     INFTXVault constant internal _nftxNFTStaking = INFTXVault(0x227c7DF69D3ed1ae7574A1a7685fDEd90292EB48);
     INFTXLPStaking internal _nftxLPStaking = INFTXLPStaking(0x688c3E4658B5367da06fd629E41879beaB538E37);
     xTokenLocker internal immutable _xTokenVault;
+    UniswapV2LiquidityHelper internal immutable _liqHelper;
+    address internal _sushiV2Factory = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
+    address constant internal _WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     bool internal _alignmentInitialized; // Minting won't function until initialized
     address internal _devAddress; // Dev's address
@@ -57,7 +62,10 @@ abstract contract AlignedWithRemilia is ERC721 {
     uint256 public pooledTithes; // Current balance of ETH tithes
     uint256 public devBalance; // Current dev balance
 
-    constructor() payable { _xTokenVault = new xTokenLocker(); }
+    constructor() payable {
+        _xTokenVault = new xTokenLocker();
+        _liqHelper = new UniswapV2LiquidityHelper(_sushiV2Factory, address(_router), _WETH);
+    }
 
     // Check Milady NFT balance
     function checkBalanceMiladyNFT() public view returns (uint256) { return (_miladyNFT.balanceOf(address(this))); }
@@ -84,6 +92,11 @@ abstract contract AlignedWithRemilia is ERC721 {
     function _changeRouter(address _newRouter) internal {
         if (_newRouter == address(0)) { revert BadAddress(); }
         _router = IUniswapV2Router02(_newRouter);
+    }
+    // Change factory address
+    function _changeFactory(address _newFactory) internal {
+        if (_newFactory == address(0)) { revert BadAddress(); }
+        _sushiV2Factory = _newFactory;
     }
     // Change NFTX LP Staking contract address
     function _changeNFTXLPStaking(address _address) internal {
@@ -179,7 +192,7 @@ abstract contract AlignedWithRemilia is ERC721 {
         // Check updated MILADYWETH balance
         uint256 miladywethNewBal = checkBalanceMILADYWETH() - miladywethBal;
         // Confirm balance increased
-        if (miladywethNewBal == 0) { revert StakeFailed(); }
+        if (miladywethNewBal == 0) { revert LiquidityFailed(); }
 
         // Return amount of MILADY/WETH LP tokens received
         emit MILADYWETHAdded(_ethAmount, _miladyAmount);
@@ -187,11 +200,21 @@ abstract contract AlignedWithRemilia is ERC721 {
     }
 
     // TODO: Add as much MILADY/WETH liquidity as possible
-    function _addAvailableLiquidityMILADYWETH() internal returns (uint256) {
-        // Step 1) Determine lesser balance value between MILADY and WETH balances
-        // Step 2) Add liquidity up to max of lesser balance
-        // Step 3) Confirm MILADYWETH balance increased
-        // Step 4) Return increase in MILADYWETH balance
+    function _addMaximumLiquidityMILADYWETH() internal returns (uint256) {
+        // Retrieve MILADYWETH balance
+        uint256 miladywethBal = checkBalanceMILADYWETH();
+
+        // Use UniswapV2LiquidityHelper contract to perform swaps and add liquidity
+        _liqHelper.swapAndAddLiquidityEthAndToken{ value: pooledTithes }(
+            address(_nftx_MILADY), uint112(checkBalanceMILADY()), 1, address(this));
+
+        // Calculate difference in MILADYWETH
+        uint256 miladywethDiff = checkBalanceMILADYWETH() - miladywethBal;
+        // If no increase, revert as liquidity addition failed
+        if (miladywethDiff == 0) { revert LiquidityFailed(); }
+        
+        // Return MILADYWETH diff
+        return (miladywethDiff);
     }
 
     // Stakes MILADYWETH in the NFTX LP staking contract
