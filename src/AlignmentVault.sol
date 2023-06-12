@@ -18,4 +18,25 @@ contract AlignmentVault is AssetManager, Ownable {
     function checkBalanceNFTXInventory() public view returns (uint256) { return (_checkBalance(IERC20(address(_nftxInventory)))); }
     function checkBalanceNFTXLiquidity() public view returns (uint256) { return (_checkBalance(IERC20(address(_nftxLiquidity)))); }
 
+    // Wrap ETH into WETH
+    function wrap(uint256 _amount) public onlyOwner { _wrap(_amount); }
+
+    // Add NFTs to NFTX Vault Inventory in exchange for vault/inventory tokens
+    function addInventory(uint256[] calldata _tokenIds) public onlyOwner { _addInventory(_tokenIds); }
+
+    // Add NFTs and WETH to NFTX NFTWETH SLP
+    function addLiquidity(uint256[] calldata _tokenIds) public onlyOwner { _addLiquidity(_tokenIds); }
+
+    // Add any amount of ETH, WETH, and NFTX Inventory tokens to NFTWETH SLP
+    function deepenLiquidity(
+        uint112 _eth, 
+        uint112 _weth, 
+        uint112 _nftxInv
+    ) public onlyOwner { _deepenLiquidity(_eth, _weth, _nftxInv); }
+
+    // Stake NFTWETH SLP in NFTX
+    function stakeLiquidity() public onlyOwner { _stakeLiquidity(); }
+
+    // Claim NFTWETH SLP rewards
+    function claimRewards() public onlyOwner { _claimRewards(); }
 }

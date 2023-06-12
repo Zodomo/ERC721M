@@ -107,7 +107,6 @@ abstract contract AssetManager {
         )))));
     }
 
-    // TODO: Remove _id once on-chain vault ID derivation is solved
     constructor(address _nft) payable {
         // Set target NFT collection for alignment
         _erc721 = IERC721(_nft);
