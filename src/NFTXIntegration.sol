@@ -84,7 +84,8 @@ abstract contract NFTXIntegration {
     uint256 immutable internal _vaultId;
 
     function _checkBalance(IERC20 _token) internal view returns (uint256) {
-        return (_token.balanceOf(address(this)));
+        if (address(_token) == address(0)) { return (address(this).balance); }
+        else { return (_token.balanceOf(address(this))); }
     }
 
     // Sort token addresses for LP address derivation
@@ -123,6 +124,12 @@ abstract contract NFTXIntegration {
         _nftxLiquidity = IERC20(_pairFor(address(_WETH), address(_nftxInventory)));
     }
 
+    // Wrap ETH into WETH
+    function _wrap(uint256 _eth) internal {
+        if (address(this).balance < _eth) { revert InsufficientBalance(); }
+        _WETH.deposit{ value: _eth }();
+    }
+
     function _addInventory(uint256[] calldata _tokenIds) internal returns (uint256) {
         // Verify ownership of _tokenIds
         if (_erc721.balanceOf(address(this)) < _tokenIds.length) { revert InsufficientBalance(); }
@@ -137,6 +144,7 @@ abstract contract NFTXIntegration {
         return (inventoryBalDiff);
     }
 
+    // TODO: Add ERC721 NFTs and WETH to NFTX NFTWETH SLP
     function _addLiquidity(uint256[] calldata _tokenIds) internal returns (uint256) {
         // Verify ownership of _tokenIds
         if (_erc721.balanceOf(address(this)) < _tokenIds.length) { revert InsufficientBalance(); }
@@ -151,13 +159,32 @@ abstract contract NFTXIntegration {
         return (0);
     }
 
-    function _addFractionalLiquidity(uint256 _eth) internal returns (uint256) {
-        // TODO:
-        // 1) Determine WETH balance
-        // 2) Determine ETH balance
-        // 3) Determine if WETH + ETH >= _eth
-        // 4) Swap ETH to WETH until WETH balance == _eth (if necessary)
-        // 5) Use _liqHelper to add max liquidity up to _eth limit
-        return (0);
+    // Add any amount of ETH, WETH, and NFTX Inventory tokens to NFTWETH SLP
+    function _deepenLiquidity(
+        uint112 _eth, 
+        uint112 _weth, 
+        uint112 _nftxInv
+    ) internal returns (uint256) {
+        // Verify balance of all inputs
+        if (_checkBalance(IERC20(address(0))) < _eth ||
+            _checkBalance(IERC20(address(_WETH))) < _weth ||
+            _checkBalance(_nftxInventory) < _nftxInv
+        ) { revert InsufficientBalance(); }
+        // Wrap any ETH into WETH
+        if (_eth > 0) {
+            _wrap(uint256(_eth));
+            _weth += _eth;
+            _eth = 0;
+        }
+        // Supply any ratio of WETH and NFTX Inventory tokens in return for max SLP tokens
+        uint256 liquidity = _liqHelper.swapAndAddLiquidityTokenAndToken(
+            address(_WETH),
+            address(_nftxInventory),
+            _weth,
+            _nftxInv,
+            1,
+            address(this)
+        );
+        return (liquidity);
     }
 }
