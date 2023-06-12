@@ -14,7 +14,7 @@ interface INFTXVault {
     function mint(uint256[] calldata tokenIds, uint256[] calldata amounts) external;
 }
 
-abstract contract Alignment is ERC721 {
+abstract contract Aligned is ERC721 {
 
     error Initialized();
     error NotInitialized();
