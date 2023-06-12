@@ -67,6 +67,7 @@ abstract contract AssetManager {
     error ZeroAddress();
     error NFTXVaultDoesntExist();
     error RewardsClaimFailed();
+    error AlignedAsset();
 
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
@@ -216,5 +217,52 @@ abstract contract AssetManager {
         if (rewardsDiff == 0) { revert RewardsClaimFailed(); }
         // Return reward amount
         return (rewardsDiff);
+    }
+
+    // Rescue ETH/ERC20 (use address(0) for ETH)
+    function _rescueERC20(address _token, address _to) internal returns (uint256) {
+        // If address(0), rescue ETH from liq helper to vault
+        if (_token == address(0)) {
+            uint256 balance = _checkBalance(IERC20(_token));
+            _liqHelper.emergencyWithdrawEther();
+            uint256 balanceDiff = _checkBalance(IERC20(_token)) - balance;
+            return (balanceDiff);
+        }
+        // If _nftxInventory or _nftxLiquidity, rescue from liq helper to vault
+        else if (_token == address(_nftxInventory) || _token == address(_nftxLiquidity)) {
+            uint256 balance = _checkBalance(IERC20(_token));
+            _liqHelper.emergencyWithdrawErc20(_token);
+            uint256 balanceDiff = _checkBalance(IERC20(_token)) - balance;
+            return (balanceDiff);
+        }
+        // If any other token, rescue from liq helper and/or vault and send to recipient
+        else {
+            // Retrieve tokens from liq helper, if any
+            if (IERC20(_token).balanceOf(address(_liqHelper)) > 0) {
+                _liqHelper.emergencyWithdrawErc20(_token);
+            }
+            // Check updated balance
+            uint256 balance = _checkBalance(IERC20(_token));
+            // Send entire balance to recipient
+            IERC20(_token).transfer(_to, balance);
+            return (balance);
+        }
+    }
+
+    // Rescue non-aligned ERC721 tokens
+    function _rescueERC721(
+        address _address, 
+        address _to,
+        uint256 _tokenId
+    ) internal returns (bool) {
+        // If _address is for the aligned collection, revert
+        if (address(_erc721) == _address) { revert AlignedAsset(); }
+        // Otherwise, check if we have it and send to owner
+        else if (IERC721(_address).ownerOf(_tokenId) == address(this)) {
+            IERC721(_address).transferFrom(address(this), _to, _tokenId);
+            return (true);
+        }
+        // Otherwise, revert as we do not own it
+        else { revert IncorrectOwner(); }
     }
 }

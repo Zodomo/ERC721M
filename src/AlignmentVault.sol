@@ -4,7 +4,20 @@ pragma solidity ^0.8.20;
 import "solady/auth/Ownable.sol";
 import "./AssetManager.sol";
 
-contract AlignmentVault is AssetManager, Ownable {
+/// @notice A generic interface for a contract which properly accepts ERC721 tokens.
+/// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC721.sol)
+abstract contract ERC721TokenReceiver {
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external virtual returns (bytes4) {
+        return ERC721TokenReceiver.onERC721Received.selector;
+    }
+}
+
+contract AlignmentVault is AssetManager, Ownable, ERC721TokenReceiver {
 
     constructor(address _nft) AssetManager(_nft) payable {
         // Initialize contract ownership
@@ -39,4 +52,16 @@ contract AlignmentVault is AssetManager, Ownable {
 
     // Claim NFTWETH SLP rewards
     function claimRewards() public onlyOwner { _claimRewards(); }
+
+    // Rescue tokens from vault and/or liq helper
+    function rescueERC20(address _token, address _to) public onlyOwner { _rescueERC20(_token, _to); }
+    function rescueERC721(
+        address _address,
+        address _to,
+        uint256 _tokenId
+    ) public onlyOwner { _rescueERC721(_address, _to, _tokenId); }
+
+    // Receive logic
+    receive() external payable { }
+    fallback() external payable { }
 }
