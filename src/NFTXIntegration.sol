@@ -67,6 +67,7 @@ abstract contract NFTXIntegration {
     error IncorrectOwner();
     error IdenticalAddresses();
     error ZeroAddress();
+    error NFTXVaultDoesntExist();
 
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
@@ -114,14 +115,16 @@ abstract contract NFTXIntegration {
         _erc721.setApprovalForAll(address(_NFTX_STAKING_ZAP), true);
         // Max approve WETH to NFTX LP Staking contract
         IERC20(address(_WETH)).approve(address(_NFTX_LIQUIDITY_STAKING), type(uint256).max);
-        // Setup liquidity helper
-        _liqHelper = new UniswapV2LiquidityHelper(_SUSHI_V2_FACTORY, address(_SUSHI_V2_ROUTER), address(_WETH));
         // Derive _nftxInventory token contract
         _nftxInventory = IERC20(_NFTX_VAULT_FACTORY.vaultsForAsset(address(_erc721))[0]);
-        // Derive _vaultId
-        _vaultId = INFTXVault(address(_nftxInventory)).vaultId();
+        // Revert if NFTX vault doesn't exist
+        if (address(_nftxInventory) == address(0)) { revert NFTXVaultDoesntExist(); }
         // Derive _nftxLiquidity LP contract
         _nftxLiquidity = IERC20(_pairFor(address(_WETH), address(_nftxInventory)));
+        // Derive _vaultId
+        _vaultId = INFTXVault(address(_nftxInventory)).vaultId();
+        // Setup liquidity helper
+        _liqHelper = new UniswapV2LiquidityHelper(_SUSHI_V2_FACTORY, address(_SUSHI_V2_ROUTER), address(_WETH));
     }
 
     // Wrap ETH into WETH
