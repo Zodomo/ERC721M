@@ -38,7 +38,7 @@ contract AlignmentVault is AssetManager, Ownable, ERC721TokenReceiver {
     function addInventory(uint256[] calldata _tokenIds) public onlyOwner { _addInventory(_tokenIds); }
 
     // Add NFTs and WETH to NFTX NFTWETH SLP
-    function addLiquidity(uint256[] calldata _tokenIds) public onlyOwner { _addLiquidity(_tokenIds); }
+    function addLiquidity(uint256[] calldata _tokenIds) public view onlyOwner { _addLiquidity(_tokenIds); }
 
     // Add any amount of ETH, WETH, and NFTX Inventory tokens to NFTWETH SLP
     function deepenLiquidity(

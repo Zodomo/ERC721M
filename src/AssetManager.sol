@@ -152,7 +152,7 @@ abstract contract AssetManager {
     }
 
     // TODO: Add ERC721 NFTs and WETH to NFTX NFTWETH SLP
-    function _addLiquidity(uint256[] calldata _tokenIds) internal returns (uint256) {
+    function _addLiquidity(uint256[] calldata _tokenIds) internal view returns (uint256) {
         // Verify ownership of _tokenIds
         if (_erc721.balanceOf(address(this)) < _tokenIds.length) { revert InsufficientBalance(); }
         for (uint i; i < _tokenIds.length;) {
