@@ -11,6 +11,9 @@ contract ERC721M is Ownable, AlignedNFT {
 
     error NotMinted();
     error URILock();
+    error MintClosed();
+    error CapReached();
+    error InsufficientPayment();
 
     event URILocked(string indexed baseUri, string indexed contractUri);
 
@@ -19,6 +22,16 @@ contract ERC721M is Ownable, AlignedNFT {
     string private _baseURI;
     string private _contractURI;
     bool public uriLocked;
+    bool public mintOpen;
+    uint256 public totalSupply;
+    uint256 public count;
+    uint256 public price;
+
+    modifier mintable() {
+        if (!mintOpen) { revert MintClosed(); }
+        if (count >= totalSupply) { revert CapReached(); }
+        _;
+    }
 
     constructor(
         uint256 _allocation,
@@ -28,7 +41,9 @@ contract ERC721M is Ownable, AlignedNFT {
         string memory __name,
         string memory __symbol,
         string memory __baseURI,
-        string memory __contractURI
+        string memory __contractURI,
+        uint256 _totalSupply,
+        uint256 _price
     ) AlignedNFT(
         _allocation,
         _nft,
@@ -39,6 +54,8 @@ contract ERC721M is Ownable, AlignedNFT {
         _symbol = __symbol;
         _baseURI = __baseURI;
         _contractURI = __contractURI;
+        totalSupply = _totalSupply;
+        price = _price;
         _initializeOwner(msg.sender);
     }
 
@@ -60,8 +77,19 @@ contract ERC721M is Ownable, AlignedNFT {
     function updateContractURI(string memory __contractURI) public onlyOwner {
         if (!uriLocked) { _contractURI = __contractURI; } else { revert URILock(); }
     }
+    function updateTotalSupply(uint256 _totalSupply) public onlyOwner {
+        if (!uriLocked) { totalSupply = _totalSupply; } else { revert URILock(); }
+    }
     function lockURI() public onlyOwner {
         uriLocked = true;
         emit URILocked(_baseURI, _contractURI);
+    }
+
+    function mint(address _to, uint256 _amount) public payable mintable {
+        if (msg.value < (price * _amount)) { revert InsufficientPayment(); }
+        for (uint256 i; i < _amount;) {
+            _mint(_to, ++count);
+            unchecked { ++i; }
+        }
     }
 }
