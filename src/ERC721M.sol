@@ -10,12 +10,14 @@ contract ERC721M is Ownable, AlignedNFT {
     using LibString for uint256;
 
     error NotMinted();
-    error URILock();
+    error URILocked();
     error MintClosed();
     error CapReached();
     error InsufficientPayment();
 
-    event URILocked(string indexed baseUri, string indexed contractUri);
+    event URIChanged(string indexed baseUri);
+    event URILock();
+    event BatchMetadataUpdate(uint256 indexed _fromTokenId, uint256 indexed _toTokenId);
 
     string private _name;
     string private _symbol;
@@ -23,7 +25,7 @@ contract ERC721M is Ownable, AlignedNFT {
     string private _contractURI;
     bool public uriLocked;
     bool public mintOpen;
-    uint256 public totalSupply;
+    uint256 public immutable totalSupply;
     uint256 public count;
     uint256 public price;
 
@@ -72,17 +74,15 @@ contract ERC721M is Ownable, AlignedNFT {
     }
 
     function updateBaseURI(string memory __baseURI) public onlyOwner {
-        if (!uriLocked) { _baseURI = __baseURI; } else { revert URILock(); }
-    }
-    function updateContractURI(string memory __contractURI) public onlyOwner {
-        if (!uriLocked) { _contractURI = __contractURI; } else { revert URILock(); }
-    }
-    function updateTotalSupply(uint256 _totalSupply) public onlyOwner {
-        if (!uriLocked) { totalSupply = _totalSupply; } else { revert URILock(); }
+        if (!uriLocked) {
+            _baseURI = __baseURI;
+            emit URIChanged(__baseURI);
+            emit BatchMetadataUpdate(0, totalSupply);
+        } else { revert URILocked(); }
     }
     function lockURI() public onlyOwner {
         uriLocked = true;
-        emit URILocked(_baseURI, _contractURI);
+        emit URILock();
     }
 
     function mint(address _to, uint256 _amount) public payable mintable {
