@@ -17,7 +17,8 @@ contract ERC721M is Ownable, AlignedNFT {
 
     event URIChanged(string indexed baseUri);
     event URILock();
-    event BatchMetadataUpdate(uint256 indexed _fromTokenId, uint256 indexed _toTokenId);
+    event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
+    event PriceUpdated(uint256 indexed price);
 
     string private _name;
     string private _symbol;
@@ -63,24 +64,31 @@ contract ERC721M is Ownable, AlignedNFT {
 
     function name() public view override returns (string memory) { return (_name); }
     function symbol() public view override returns (string memory) { return (_symbol); }
-    function _baseUri() internal view returns (string memory) { return (_baseURI); }
-    function contractURI() public view returns (string memory) { return (_contractURI); }
+    function _baseUri() internal view virtual returns (string memory) { return (_baseURI); }
+    function contractURI() public view virtual returns (string memory) { return (_contractURI); }
 
-    function tokenURI(uint256 _tokenId) public view override returns (string memory) {
+    function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         if (!_exists(_tokenId)) { revert NotMinted(); } // Require token exists
         string memory __baseURI = _baseUri();
 
         return (bytes(__baseURI).length > 0 ? string(abi.encodePacked(__baseURI, _tokenId.toString())) : "");
     }
 
-    function updateBaseURI(string memory __baseURI) public onlyOwner {
+    function changePushRecipient(address _to) public virtual onlyOwner { _changePushRecipient(_to); }
+    function setPushStatus(bool _pushStatus) public virtual onlyOwner { _setPushStatus(_pushStatus); }
+    function setPrice(uint256 _price) public virtual onlyOwner {
+        price = _price;
+        emit PriceUpdated(_price);
+    }
+
+    function updateBaseURI(string memory __baseURI) public virtual onlyOwner {
         if (!uriLocked) {
             _baseURI = __baseURI;
             emit URIChanged(__baseURI);
             emit BatchMetadataUpdate(0, totalSupply);
         } else { revert URILocked(); }
     }
-    function lockURI() public onlyOwner {
+    function lockURI() public virtual onlyOwner {
         uriLocked = true;
         emit URILock();
     }
@@ -91,5 +99,32 @@ contract ERC721M is Ownable, AlignedNFT {
             _mint(_to, ++count);
             unchecked { ++i; }
         }
+    }
+
+    function wrap(uint256 _amount) public virtual onlyOwner { vault.wrap(_amount); }
+    function addInventory(uint256[] calldata _tokenIds) public virtual onlyOwner { vault.addInventory(_tokenIds); }
+    function addLiquidity(uint256[] calldata _tokenIds) public virtual onlyOwner { vault.addLiquidity(_tokenIds); }
+    function deepenLiquidity(
+        uint112 _eth,
+        uint112 _weth,
+        uint112 _nftxInv
+    ) public virtual onlyOwner { deepenLiquidity(_eth, _weth, _nftxInv); }
+    function stakeLiquidity() public virtual onlyOwner { vault.stakeLiquidity(); }
+    function claimRewards() public virtual onlyOwner { vault.claimRewards(); }
+    function rescueERC20(address _token, address _to) public virtual onlyOwner { vault.rescueERC20(_token, _to); }
+    function rescueERC721(
+        address _address,
+        address _to,
+        uint256 _tokenId
+    ) public virtual onlyOwner { vault.rescueERC721(_address, _to, _tokenId); }
+    function withdrawAllocation(address _to, uint256 _amount) public onlyOwner { _withdrawAllocation(_to, _amount); }
+
+    receive() external payable {
+        (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
+        if (!success) { revert TransferFailed(); }
+    }
+    fallback() external payable {
+        (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
+        if (!success) { revert TransferFailed(); }
     }
 }

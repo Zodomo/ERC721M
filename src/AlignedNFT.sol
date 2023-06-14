@@ -74,7 +74,7 @@ abstract contract AlignedNFT is ERC721 {
         totalAllocated += mintAlloc;
 
         // Send tithe to AlignmentVault
-        (bool titheSuccess, ) = payable(vault).call{ value: tithe }("");
+        (bool titheSuccess, ) = payable(address(vault)).call{ value: tithe }("");
         if (!titheSuccess) { revert TransferFailed(); }
 
         // Process ERC721 mint logic
