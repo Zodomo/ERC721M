@@ -7,6 +7,8 @@ import "./TestingAssetManager.sol";
 contract AssetManagerTest is DSTestPlus {
     
     TestingAssetManager assetManager;
+    IWETH weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     function setUp() public {
         hevm.deal(address(this), 100 ether);
@@ -51,6 +53,8 @@ contract AssetManagerTest is DSTestPlus {
     function test_vaultId() public view {
         require(assetManager.view_vaultId() == 392); // NFTX Milady Vault ID
     }
+    
+    // TODO: function test_checkBalance() public view { }
 
     function test_sortTokens(address _tokenA, address _tokenB) public {
         hevm.assume(_tokenA != _tokenB);
@@ -87,4 +91,9 @@ contract AssetManagerTest is DSTestPlus {
             0x227c7DF69D3ed1ae7574A1a7685fDEd90292EB48 // NFTX MILADY token
         ) == 0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // MILADYWETH SLP
     }
+    
+    function test_wrap(uint256 _amount) public {
+        hevm.deal(address(assetManager), _amount);
+        assetManager.execute_wrap(_amount);
+        require(wethToken.balanceOf(address(assetManager)) == _amount);
 }
