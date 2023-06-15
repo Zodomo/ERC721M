@@ -9,10 +9,11 @@ contract AssetManagerTest is DSTestPlus {
     TestingAssetManager assetManager;
     IWETH weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC721 nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
 
     function setUp() public {
         hevm.deal(address(this), 100 ether);
-        assetManager = new TestingAssetManager(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
+        assetManager = new TestingAssetManager(address(nft));
     }
 
     function test_WETH() public view {
@@ -96,4 +97,29 @@ contract AssetManagerTest is DSTestPlus {
         hevm.deal(address(assetManager), _amount);
         assetManager.execute_wrap(_amount);
         require(wethToken.balanceOf(address(assetManager)) == _amount);
+    }
+    function test_wrap_InsufficientBalance() public {
+        hevm.expectRevert(AssetManager.InsufficientBalance.selector);
+        assetManager.execute_wrap(1 ether);
+    }
+    
+    function test_addInventory(uint256 _tokenId) public {
+        hevm.assume(nft.ownerOf(_tokenId) > address(0));
+        hevm.prank(nft.ownerOf(_tokenId));
+        nft.transferFrom(nft.ownerOf(_tokenId), address(assetManager), _tokenId);
+        uint[] memory tokenId = new uint[](1);
+        tokenId[0] = _tokenId;
+        uint256 inventory = assetManager.execute_addInventory(tokenId);
+        require(inventory > 0);
+    }
+    function test_addInventoryBatch(uint256[] _tokenIds) public {
+        hevm.assume(_tokenIds.length < 32);
+        for (uint256 i; i < _tokenIds.length; i++) {
+            hevm.assume(nft.ownerOf(_tokenIds[i]) > address(0));
+            hevm.prank(nft.ownerOf(_tokenId));
+            nft.transferFrom(nft.ownerOf(_tokenId), address(assetManager), _tokenId);
+        }
+        uint256 inventory = assetManager.execute_addInventory(_tokenIds);
+        require(inventory > 0);
+    }
 }
