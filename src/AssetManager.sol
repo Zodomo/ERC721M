@@ -72,17 +72,17 @@ abstract contract AssetManager {
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
     IUniswapV2Router02 constant internal _SUSHI_V2_ROUTER = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
-    UniswapV2LiquidityHelper internal immutable _liqHelper;
+    UniswapV2LiquidityHelper internal _liqHelper; //
 
     INFTXFactory constant internal _NFTX_VAULT_FACTORY = INFTXFactory(0xBE86f647b167567525cCAAfcd6f881F1Ee558216);
     INFTXInventoryStaking constant internal _NFTX_INVENTORY_STAKING = INFTXInventoryStaking(0x3E135c3E981fAe3383A5aE0d323860a34CfAB893);
     INFTXLPStaking constant internal _NFTX_LIQUIDITY_STAKING = INFTXLPStaking(0x688c3E4658B5367da06fd629E41879beaB538E37);
     INFTXStakingZap constant internal _NFTX_STAKING_ZAP = INFTXStakingZap(0xdC774D5260ec66e5DD4627E1DD800Eff3911345C);
     
-    IERC721 immutable internal _erc721; // ERC721 token
-    IERC20 immutable internal _nftxInventory; // NFTX NFT token
-    IERC20 immutable internal _nftxLiquidity; // NFTX NFTWETH token
-    uint256 immutable internal _vaultId;
+    IERC721 internal immutable _erc721; // ERC721 token
+    IERC20 internal immutable _nftxInventory; // NFTX NFT token
+    IERC20 internal immutable _nftxLiquidity; // NFTX NFTWETH token
+    uint256 internal immutable _vaultId;
 
     // Check balance of any token, use zero address for native ETH
     function _checkBalance(IERC20 _token) internal view returns (uint256) {
@@ -92,9 +92,9 @@ abstract contract AssetManager {
 
     // Sort token addresses for LP address derivation
     function _sortTokens(address _tokenA, address _tokenB) internal pure returns (address token0, address token1) {
-        if (_tokenA != _tokenB) { revert IdenticalAddresses(); }
+        if (_tokenA == _tokenB) { revert IdenticalAddresses(); }
         (token0, token1) = _tokenA < _tokenB ? (_tokenA, _tokenB) : (_tokenB, _tokenA);
-        if (token0 != address(0)) { revert ZeroAddress(); }
+        if (token0 == address(0)) { revert ZeroAddress(); }
     }
 
     // Calculates the CREATE2 address for a pair without making any external calls
@@ -116,7 +116,7 @@ abstract contract AssetManager {
         // Max approve WETH to NFTX LP Staking contract
         IERC20(address(_WETH)).approve(address(_NFTX_LIQUIDITY_STAKING), type(uint256).max);
         // Derive _nftxInventory token contract
-        _nftxInventory = IERC20(_NFTX_VAULT_FACTORY.vaultsForAsset(address(_erc721))[0]);
+        _nftxInventory = IERC20(address(_NFTX_VAULT_FACTORY.vaultsForAsset(address(_erc721))[0]));
         // Revert if NFTX vault doesn't exist
         if (address(_nftxInventory) == address(0)) { revert NFTXVaultDoesntExist(); }
         // Derive _nftxLiquidity LP contract

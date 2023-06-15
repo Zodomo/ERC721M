@@ -5,7 +5,7 @@ import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
 import "../src/AssetManager.sol";
 
-contract TestingAssetMananger is AssetManager {
+contract TestingAssetManager is AssetManager {
 
     constructor(address _nft) AssetManager(_nft) { }
 
@@ -29,7 +29,7 @@ contract TestingAssetMananger is AssetManager {
         (address token0, address token1) = _sortTokens(_tokenA, _tokenB);
         return (token0, token1);
     }
-    function call_pairFor(address _tokenA, address _tokenB) internal pure returns (address) {
+    function call_pairFor(address _tokenA, address _tokenB) public pure returns (address) {
         return (_pairFor(_tokenA, _tokenB));
     }
     
