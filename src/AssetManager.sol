@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
+import "v2-core/interfaces/IUniswapV2Pair.sol";
 import "./UniswapV2LiquidityHelper.sol";
 
 interface INFTXFactory {
@@ -60,7 +61,6 @@ interface INFTXStakingZap {
 
 abstract contract AssetManager {
 
-    error BalanceDidntIncrease(address token);
     error InsufficientBalance();
     error IncorrectOwner();
     error IdenticalAddresses();
@@ -114,7 +114,7 @@ abstract contract AssetManager {
         // Approve sending any NFT tokenId to NFTX Staking Zap contract
         _erc721.setApprovalForAll(address(_NFTX_STAKING_ZAP), true);
         // Max approve WETH to NFTX LP Staking contract
-        IERC20(address(_WETH)).approve(address(_NFTX_LIQUIDITY_STAKING), type(uint256).max);
+        IERC20(address(_WETH)).approve(address(_NFTX_STAKING_ZAP), type(uint256).max);
         // Derive _nftxInventory token contract
         _nftxInventory = IERC20(address(_NFTX_VAULT_FACTORY.vaultsForAsset(address(_erc721))[0]));
         // Revert if NFTX vault doesn't exist
@@ -148,19 +148,41 @@ abstract contract AssetManager {
         _NFTX_STAKING_ZAP.provideInventory721(_vaultId, _tokenIds);
     }
 
-    // TODO: Add ERC721 NFTs and WETH to NFTX NFTWETH SLP
-    function _addLiquidity(uint256[] calldata _tokenIds) internal view returns (uint256) {
+    function _addLiquidity(uint256[] calldata _tokenIds) internal returns (uint256) {
         // Verify ownership of _tokenIds
         if (_erc721.balanceOf(address(this)) < _tokenIds.length) { revert InsufficientBalance(); }
         for (uint i; i < _tokenIds.length;) {
             if (_erc721.ownerOf(_tokenIds[i]) != address(this)) { revert IncorrectOwner(); }
             unchecked { ++i; }
         }
-        // TODO:
-        // 1) Calculate WETH required to add number of tokens
-        // 2) Check if WETH is enough, if not, WETH + ETH and handle conversion, else revert
-        // 3) Call addLiquidity721()
-        return (0);
+        // Retrieve SLP reserves to calculate price of NFT token in WETH
+        (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(_nftxLiquidity)).getReserves();
+        // Reverse reserves values if token1 isn't WETH
+        if (IUniswapV2Pair(address(_nftxLiquidity)).token1() != address(_WETH)) {
+            uint112 _reserve0 = reserve0;
+            uint112 _reserve1 = reserve1;
+            reserve0 = _reserve1;
+            reserve1 = _reserve0;
+        }
+        // Retrieve WETH balance
+        uint256 wethBal = _checkBalance(IERC20(address(_WETH)));
+        // Calculate value of NFT in WETH using SLP reserves values
+        uint256 ethPerNFT = ((10**18 * reserve1) / reserve0);
+        uint256 totalRequiredWETH = ethPerNFT * _tokenIds.length;
+        // Check if contract has enough WETH on hand
+        if (wethBal < totalRequiredWETH) {
+            // If not, check to see if WETH + ETH balance is enough
+            if ((wethBal + _checkBalance(IERC20(address(0)))) < totalRequiredWETH) {
+                // If there just isn't enough ETH, revert
+                revert InsufficientBalance();
+            } else {
+                // If there is enough WETH + ETH, wrap the necessary ETH
+                uint256 amountToWrap = totalRequiredWETH - wethBal;
+                _wrap(amountToWrap);
+            }
+        }
+        // Add NFT + WETH liquidity to NFTX and return amount of SLP deposited
+        return (_NFTX_STAKING_ZAP.addLiquidity721(_vaultId, _tokenIds, totalRequiredWETH, totalRequiredWETH));
     }
 
     // Add any amount of ETH, WETH, and NFTX Inventory tokens to NFTWETH SLP
