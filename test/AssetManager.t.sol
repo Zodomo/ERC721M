@@ -103,23 +103,41 @@ contract AssetManagerTest is DSTestPlus {
         assetManager.execute_wrap(1 ether);
     }
     
-    function test_addInventory(uint256 _tokenId) public {
-        hevm.assume(nft.ownerOf(_tokenId) > address(0));
-        hevm.prank(nft.ownerOf(_tokenId));
-        nft.transferFrom(nft.ownerOf(_tokenId), address(assetManager), _tokenId);
-        uint[] memory tokenId = new uint[](1);
-        tokenId[0] = _tokenId;
-        uint256 inventory = assetManager.execute_addInventory(tokenId);
-        require(inventory > 0);
+    function test_addInventory() public {
+        hevm.assume(nft.ownerOf(42) > address(0));
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(assetManager), 42);
+        hevm.stopPrank();
+        uint256[] memory tokenId = new uint256[](1);
+        tokenId[0] = 42;
+        assetManager.execute_addInventory(tokenId);
     }
-    function test_addInventoryBatch(uint256[] _tokenIds) public {
-        hevm.assume(_tokenIds.length < 32);
-        for (uint256 i; i < _tokenIds.length; i++) {
-            hevm.assume(nft.ownerOf(_tokenIds[i]) > address(0));
-            hevm.prank(nft.ownerOf(_tokenId));
-            nft.transferFrom(nft.ownerOf(_tokenId), address(assetManager), _tokenId);
+    function test_addInventoryBatch() public {
+        uint[] memory tokenIds = new uint256[](10);
+        for (uint256 i; i < 10; i++) { tokenIds[i] = i + 1; }
+        for (uint256 i; i < tokenIds.length; i++) {
+            hevm.startPrank(nft.ownerOf(tokenIds[i]));
+            nft.approve(address(this), tokenIds[i]);
+            nft.transferFrom(nft.ownerOf(tokenIds[i]), address(assetManager), tokenIds[i]);
+            hevm.stopPrank();
         }
-        uint256 inventory = assetManager.execute_addInventory(_tokenIds);
-        require(inventory > 0);
+        assetManager.execute_addInventory(tokenIds);
+    }
+    function test_addInventoryBatch_InsufficientBalance() public {
+        uint[] memory tokenIds = new uint256[](2);
+        for (uint256 i; i < 2; i++) { tokenIds[i] = i + 1; }
+        hevm.expectRevert(AssetManager.InsufficientBalance.selector);
+        assetManager.execute_addInventory(tokenIds);
+    }
+    function test_addInventoryBatch_IncorrectOwner() public {
+        uint[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 42;
+        hevm.startPrank(nft.ownerOf(69));
+        nft.approve(address(this), 69);
+        nft.transferFrom(nft.ownerOf(69), address(assetManager), 69);
+        hevm.expectRevert(AssetManager.IncorrectOwner.selector);
+        assetManager.execute_addInventory(tokenIds);
+        hevm.stopPrank();
     }
 }

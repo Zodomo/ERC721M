@@ -34,12 +34,8 @@ contract TestingAssetManager is AssetManager {
     }
     
     function execute_wrap(uint256 _eth) public { _wrap(_eth); }
-    function execute_addInventory(uint256[] calldata _tokenIds) public returns (uint256) {
-        return (_addInventory(_tokenIds));
-    }
-    function execute_addLiquidity(uint256[] calldata _tokenIds) public view returns (uint256) {
-        return (_addLiquidity(_tokenIds));
-    }
+    function execute_addInventory(uint256[] calldata _tokenIds) public { _addInventory(_tokenIds); }
+    function execute_addLiquidity(uint256[] calldata _tokenIds) public view { _addLiquidity(_tokenIds); }
     function execute_deepenLiquidity(
         uint112 _eth,
         uint112 _weth,

@@ -137,18 +137,15 @@ abstract contract AssetManager {
     }
 
     // Add NFTs to NFTX Inventory in exchange for vault tokens
-    function _addInventory(uint256[] calldata _tokenIds) internal returns (uint256) {
-        // Verify ownership of _tokenIds
+    function _addInventory(uint256[] calldata _tokenIds) internal {
+        // Check balance against array length to save gas before loop execution
         if (_erc721.balanceOf(address(this)) < _tokenIds.length) { revert InsufficientBalance(); }
         for (uint i; i < _tokenIds.length;) {
+            // Verify ownership of _tokenIds
             if (_erc721.ownerOf(_tokenIds[i]) != address(this)) { revert IncorrectOwner(); }
             unchecked { ++i; }
         }
-        uint256 inventoryBal = _checkBalance(_nftxInventory);
         _NFTX_STAKING_ZAP.provideInventory721(_vaultId, _tokenIds);
-        uint256 inventoryBalDiff = _checkBalance(_nftxInventory) - inventoryBal;
-        if (inventoryBalDiff == 0) { revert BalanceDidntIncrease(address(_nftxInventory)); }
-        return (inventoryBalDiff);
     }
 
     // TODO: Add ERC721 NFTs and WETH to NFTX NFTWETH SLP
