@@ -60,8 +60,4 @@ contract AlignmentVault is AssetManager, Ownable, ERC721TokenReceiver {
         address _to,
         uint256 _tokenId
     ) public onlyOwner { _rescueERC721(_address, _to, _tokenId); }
-
-    // Receive logic
-    receive() external payable { }
-    fallback() external payable { }
 }

@@ -121,6 +121,8 @@ abstract contract AssetManager {
         if (address(_nftxInventory) == address(0)) { revert NFTXVaultDoesntExist(); }
         // Derive _nftxLiquidity LP contract
         _nftxLiquidity = IERC20(_pairFor(address(_WETH), address(_nftxInventory)));
+        // Approve sending _nftxLiquidity to NFTX LP Staking contract
+        _nftxLiquidity.approve(address(_NFTX_LIQUIDITY_STAKING), type(uint256).max);
         // Derive _vaultId
         _vaultId = INFTXVault(address(_nftxInventory)).vaultId();
         // Setup liquidity helper
@@ -167,7 +169,7 @@ abstract contract AssetManager {
         // Retrieve WETH balance
         uint256 wethBal = _checkBalance(IERC20(address(_WETH)));
         // Calculate value of NFT in WETH using SLP reserves values
-        uint256 ethPerNFT = ((10**18 * reserve1) / reserve0);
+        uint256 ethPerNFT = ((10**18 * uint256(reserve1)) / uint256(reserve0));
         uint256 totalRequiredWETH = ethPerNFT * _tokenIds.length;
         // Check if contract has enough WETH on hand
         if (wethBal < totalRequiredWETH) {
@@ -222,6 +224,7 @@ abstract contract AssetManager {
         // Stake entire balance
         _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
         // Return amount staked
+        liquidity -= _checkBalance(_nftxLiquidity);
     }
 
     // Claim NFTWETH SLP rewards
@@ -284,4 +287,8 @@ abstract contract AssetManager {
         // Otherwise, revert as we do not own it
         else { revert IncorrectOwner(); }
     }
+
+    // Receive logic
+    receive() external payable { }
+    fallback() external payable { }
 }

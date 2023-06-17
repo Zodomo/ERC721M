@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
+
 import "./TestingAssetManager.sol";
 
 contract AssetManagerTest is DSTestPlus {
@@ -10,9 +11,13 @@ contract AssetManagerTest is DSTestPlus {
     IWETH weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC721 nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
+    IUniswapV2Router02  sushiRouter = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+    IERC20 nftxInv = IERC20(0x227c7DF69D3ed1ae7574A1a7685fDEd90292EB48); // NFTX MILADY token
+    IUniswapV2Pair nftWeth = IUniswapV2Pair(0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // MILADYWETH SLP
 
     function setUp() public {
-        hevm.deal(address(this), 100 ether);
+        hevm.deal(address(this), 200 ether);
+        weth.deposit{ value: 100 ether }();
         assetManager = new TestingAssetManager(address(nft));
     }
 
@@ -139,5 +144,59 @@ contract AssetManagerTest is DSTestPlus {
         hevm.expectRevert(AssetManager.IncorrectOwner.selector);
         assetManager.execute_addInventory(tokenIds);
         hevm.stopPrank();
+    }
+
+    function test_addLiquidity() public {
+        hevm.assume(nft.ownerOf(42) > address(0));
+        hevm.deal(nft.ownerOf(42), 100 ether);
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(assetManager), 42);
+        weth.deposit{ value: 10 ether }();
+        IERC20(address(weth)).approve(address(this), 10 ether);
+        IERC20(address(weth)).transfer(address(assetManager), 10 ether);
+        hevm.stopPrank();
+        uint256[] memory tokenId = new uint256[](1);
+        tokenId[0] = 42;
+        assetManager.execute_addLiquidity(tokenId);
+    }
+
+    function test_deepenLiquidity_ETH() public {
+        (bool success, ) = payable(address(assetManager)).call{ value: 10 ether }("");
+        require(success);
+        uint256 liquidity = assetManager.execute_deepenLiquidity(10 ether, 0, 0);
+        require(liquidity > 0);
+    }
+    function test_deepenLiquidity_WETH() public {
+        wethToken.transfer(address(assetManager), 10 ether);
+        uint256 liquidity = assetManager.execute_deepenLiquidity(0, 10 ether, 0);
+        require(liquidity > 0);
+    }
+    function test_deepenLiquidity_NFTX() public {
+        wethToken.approve(address(sushiRouter), 100 ether);
+        address[] memory path = new address[](2);
+        (path[1], path[0]) = assetManager.call_sortTokens(address(weth), address(nftxInv));
+        sushiRouter.swapTokensForExactTokens(10 ether, 100 ether, path, address(assetManager), block.timestamp + 60 seconds);
+        assetManager.execute_deepenLiquidity(0, 0, 10 ether);
+    }
+    function test_deepenLiquidity_InsufficientBalance_ETH() public {
+        hevm.expectRevert(AssetManager.InsufficientBalance.selector);
+        assetManager.execute_deepenLiquidity(10 ether, 0, 0);
+    }
+    function test_deepenLiquidity_InsufficientBalance_WETH() public {
+        hevm.expectRevert(AssetManager.InsufficientBalance.selector);
+        assetManager.execute_deepenLiquidity(0, 10 ether, 0);
+    }
+    function test_deepenLiquidity_InsufficientBalance_NFTX() public {
+        hevm.expectRevert(AssetManager.InsufficientBalance.selector);
+        assetManager.execute_deepenLiquidity(0, 0, 10 ether);
+    }
+
+    function test_stakeLiquidity() public {
+        wethToken.transfer(address(assetManager), 10 ether);
+        uint256 liquidity = assetManager.execute_deepenLiquidity(0, 10 ether, 0);
+        require(liquidity > 0);
+        uint256 stakedLiquidity = assetManager.execute_stakeLiquidity();
+        require(stakedLiquidity > 0);
     }
 }
