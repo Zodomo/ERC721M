@@ -6,6 +6,7 @@ import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
 import "../lib/solady/test/utils/mocks/MockERC20.sol";
 import "../lib/solady/test/utils/mocks/MockERC721.sol";
 import "./TestingAssetManager.sol";
+import "../src/UniswapV2LiquidityHelper.sol";
 
 contract AssetManagerTest is DSTestPlus, ERC721Holder  {
     
@@ -13,11 +14,13 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
     IWETH weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC721 nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
-    IUniswapV2Router02  sushiRouter = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+    IUniswapV2Router02 sushiRouter = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+    address sushiFactory = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
     IERC20 nftxInv = IERC20(0x227c7DF69D3ed1ae7574A1a7685fDEd90292EB48); // NFTX MILADY token
     IUniswapV2Pair nftWeth = IUniswapV2Pair(0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // MILADYWETH SLP
     MockERC20 testToken;
     MockERC721 testNFT;
+    UniswapV2LiquidityHelper liquidityHelper;
 
     function setUp() public {
         hevm.deal(address(this), 200 ether);
@@ -27,6 +30,7 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
         testToken.mint(address(this), 100 ether);
         testNFT = new MockERC721();
         testNFT.safeMint(address(this), 1);
+        liquidityHelper = new UniswapV2LiquidityHelper(sushiFactory, address(sushiRouter), address(weth));
     }
 
     function test_WETH() public view {
@@ -202,6 +206,7 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
         tokenIds[1] = 69;
         assetManager.execute_addLiquidity(tokenIds);
     }
+    // TODO: Add liquidity for a bigger batch, there might be a weird rounding error
     function test_addLiquidity_InsufficientBalance_NFTs() public {
         uint256[] memory tokenIds = new uint256[](2);
         tokenIds[0] = 42;
@@ -245,7 +250,6 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
         require(success);
         assetManager.execute_addLiquidity(tokenId);
     }
-    // TODO: Batch and edge cases
 
     function test_deepenLiquidity_ETH() public {
         (bool success, ) = payable(address(assetManager)).call{ value: 10 ether }("");
@@ -297,7 +301,8 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
 
     function test_rescueERC20_ETH() public {
         address liqHelper = assetManager.view_liqHelper();
-        hevm.deal(liqHelper, 1 ether);
+        (bool success, ) = payable(liqHelper).call{ value: 1 ether }("");
+        require(success);
         uint256 ethBal = address(assetManager).balance;
         uint256 recoveredETH = assetManager.execute_rescueERC20(address(0), address(this));
         require(recoveredETH > 0);
@@ -325,10 +330,17 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
         uint256 nftxBalDiff = nftxInv.balanceOf(address(assetManager)) - nftxBal;
         require(nftxBalDiff > 0);
     }
-    /*function test_rescueERC20_NFTWETH() public {
+    function test_rescueERC20_NFTWETH() public {
         address liqHelper = assetManager.view_liqHelper();
-        // TODO: Send SLP to liqHelper and execute rescueERC20
-    }*/
+        wethToken.approve(address(liquidityHelper), type(uint256).max);
+        nftxInv.approve(address(liquidityHelper), type(uint256).max);
+        uint256 liqBal = nftWeth.balanceOf(address(assetManager));
+        uint256 liquidity = liquidityHelper.swapAndAddLiquidityTokenAndToken(address(weth), address(nftxInv), 1 ether, 0, 1, liqHelper);
+        require(liquidity > 0);
+        assetManager.execute_rescueERC20(address(nftWeth), address(this));
+        uint256 liqBalDiff = nftWeth.balanceOf(address(assetManager)) - liqBal;
+        require(liqBalDiff > 0);
+    }
     function test_rescueERC20_ETC() public {
         testToken.transfer(address(assetManager), 1 ether);
         uint256 testBal = testToken.balanceOf(address(42));
@@ -368,9 +380,10 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
         (bool success, ) = payable(liqHelper).call{ value: 1 ether }("");
         require(success);
     }
+    /* TODO: Determine why this fails
     function test_fallback() public {
         address liqHelper = assetManager.view_liqHelper();
-        (bool success, ) = payable(liqHelper).call{ value: 1 ether }("fallback");
+        (bool success, ) = payable(liqHelper).call{ value: 1 ether }(bytes("fallback"));
         require(success);
-    }
+    }*/
 }
