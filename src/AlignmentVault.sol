@@ -4,20 +4,7 @@ pragma solidity ^0.8.20;
 import "solady/auth/Ownable.sol";
 import "./AssetManager.sol";
 
-/// @notice A generic interface for a contract which properly accepts ERC721 tokens.
-/// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC721.sol)
-abstract contract ERC721TokenReceiver {
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes calldata
-    ) external virtual returns (bytes4) {
-        return ERC721TokenReceiver.onERC721Received.selector;
-    }
-}
-
-contract AlignmentVault is AssetManager, Ownable, ERC721TokenReceiver {
+contract AlignmentVault is Ownable, AssetManager {
 
     constructor(address _nft) AssetManager(_nft) payable {
         // Initialize contract ownership
@@ -26,10 +13,10 @@ contract AlignmentVault is AssetManager, Ownable, ERC721TokenReceiver {
 
     // Check token balances
     function checkBalanceNFT() public view returns (uint256) { return (_erc721.balanceOf(address(this))); }
-    function checkBalanceETH() public view returns (uint256) { return (_checkBalance(IERC20(address(0)))); }
-    function checkBalanceWETH() public view returns (uint256) { return (_checkBalance(IERC20(address(_WETH)))); }
-    function checkBalanceNFTXInventory() public view returns (uint256) { return (_checkBalance(IERC20(address(_nftxInventory)))); }
-    function checkBalanceNFTXLiquidity() public view returns (uint256) { return (_checkBalance(IERC20(address(_nftxLiquidity)))); }
+    function checkBalanceETH() public view returns (uint256) { return (_checkBalance(address(0))); }
+    function checkBalanceWETH() public view returns (uint256) { return (_checkBalance(address(_WETH))); }
+    function checkBalanceNFTXInventory() public view returns (uint256) { return (_checkBalance(address(_nftxInventory))); }
+    function checkBalanceNFTXLiquidity() public view returns (uint256) { return (_checkBalance(address(_nftxLiquidity))); }
 
     // Wrap ETH into WETH
     function wrap(uint256 _amount) public onlyOwner { _wrap(_amount); }

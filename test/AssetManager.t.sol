@@ -2,10 +2,12 @@
 pragma solidity ^0.8.20;
 
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
-
+import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
+import "../lib/solady/test/utils/mocks/MockERC20.sol";
+import "../lib/solady/test/utils/mocks/MockERC721.sol";
 import "./TestingAssetManager.sol";
 
-contract AssetManagerTest is DSTestPlus {
+contract AssetManagerTest is DSTestPlus, ERC721Holder  {
     
     TestingAssetManager assetManager;
     IWETH weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -14,11 +16,17 @@ contract AssetManagerTest is DSTestPlus {
     IUniswapV2Router02  sushiRouter = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
     IERC20 nftxInv = IERC20(0x227c7DF69D3ed1ae7574A1a7685fDEd90292EB48); // NFTX MILADY token
     IUniswapV2Pair nftWeth = IUniswapV2Pair(0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // MILADYWETH SLP
+    MockERC20 testToken;
+    MockERC721 testNFT;
 
     function setUp() public {
         hevm.deal(address(this), 200 ether);
         weth.deposit{ value: 100 ether }();
         assetManager = new TestingAssetManager(address(nft));
+        testToken = new MockERC20("Test Token", "TEST", 18);
+        testToken.mint(address(this), 100 ether);
+        testNFT = new MockERC721();
+        testNFT.safeMint(address(this), 1);
     }
 
     function test_WETH() public view {
@@ -60,7 +68,15 @@ contract AssetManagerTest is DSTestPlus {
         require(assetManager.view_vaultId() == 392); // NFTX Milady Vault ID
     }
     
-    // TODO: function test_checkBalance() public view { }
+    function test_checkBalance_ETH() public {
+        (bool success, ) = payable(address(assetManager)).call{ value: 1 ether }("");
+        require(success);
+        require(assetManager.call_checkBalance(address(0)) == 1 ether);
+    }
+    function test_checkBalance_ERC20() public {
+        wethToken.transfer(address(assetManager), 1 ether);
+        require(assetManager.call_checkBalance(address(weth)) == 1 ether);
+    }
 
     function test_sortTokens(address _tokenA, address _tokenB) public {
         hevm.assume(_tokenA != _tokenB);
@@ -99,6 +115,7 @@ contract AssetManagerTest is DSTestPlus {
     }
     
     function test_wrap(uint256 _amount) public {
+        hevm.assume(_amount < 420 ether);
         hevm.deal(address(assetManager), _amount);
         assetManager.execute_wrap(_amount);
         require(wethToken.balanceOf(address(assetManager)) == _amount);
@@ -152,14 +169,83 @@ contract AssetManagerTest is DSTestPlus {
         hevm.startPrank(nft.ownerOf(42));
         nft.approve(address(this), 42);
         nft.transferFrom(nft.ownerOf(42), address(assetManager), 42);
-        weth.deposit{ value: 10 ether }();
-        IERC20(address(weth)).approve(address(this), 10 ether);
-        IERC20(address(weth)).transfer(address(assetManager), 10 ether);
+        weth.deposit{ value: 50 ether }();
+        IERC20(address(weth)).approve(address(this), 50 ether);
+        IERC20(address(weth)).transfer(address(assetManager), 50 ether);
         hevm.stopPrank();
         uint256[] memory tokenId = new uint256[](1);
         tokenId[0] = 42;
         assetManager.execute_addLiquidity(tokenId);
     }
+    function test_addLiquidityBatch() public {
+        hevm.assume(nft.ownerOf(42) > address(0));
+        hevm.assume(nft.ownerOf(69) > address(0));
+        hevm.deal(nft.ownerOf(42), 100 ether);
+        hevm.deal(nft.ownerOf(69), 100 ether);
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(assetManager), 42);
+        weth.deposit{ value: 50 ether }();
+        IERC20(address(weth)).approve(address(this), 50 ether);
+        IERC20(address(weth)).transfer(address(assetManager), 50 ether);
+        hevm.stopPrank();
+        hevm.startPrank(nft.ownerOf(69));
+        nft.approve(address(this), 69);
+        nft.transferFrom(nft.ownerOf(69), address(assetManager), 69);
+        weth.deposit{ value: 50 ether }();
+        IERC20(address(weth)).approve(address(this), 50 ether);
+        IERC20(address(weth)).transfer(address(assetManager), 50 ether);
+        hevm.stopPrank();
+        require(nft.balanceOf(address(assetManager)) == 2);
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = 42;
+        tokenIds[1] = 69;
+        assetManager.execute_addLiquidity(tokenIds);
+    }
+    function test_addLiquidity_InsufficientBalance_NFTs() public {
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = 42;
+        tokenIds[1] = 69;
+        hevm.expectRevert(AssetManager.InsufficientBalance.selector);
+        assetManager.execute_addLiquidity(tokenIds);
+    }
+    function test_addLiquidity_IncorrectOwner() public {
+        hevm.assume(nft.ownerOf(42) > address(0));
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(assetManager), 42);
+        hevm.stopPrank();
+        uint256[] memory tokenId = new uint256[](1);
+        tokenId[0] = 69;
+        hevm.expectRevert(AssetManager.IncorrectOwner.selector);
+        assetManager.execute_addLiquidity(tokenId);
+    }
+    function test_addLiquidity_InsufficientBalance_Ether() public {
+        hevm.assume(nft.ownerOf(42) > address(0));
+        hevm.deal(nft.ownerOf(42), 1 ether);
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(assetManager), 42);
+        hevm.stopPrank();
+        uint256[] memory tokenId = new uint256[](1);
+        tokenId[0] = 42;
+        hevm.expectRevert(AssetManager.InsufficientBalance.selector);
+        assetManager.execute_addLiquidity(tokenId);
+    }
+    function test_addLiquidity_wrapNecessaryETH() public {
+        hevm.assume(nft.ownerOf(42) > address(0));
+        hevm.deal(nft.ownerOf(42), 1 ether);
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(assetManager), 42);
+        hevm.stopPrank();
+        uint256[] memory tokenId = new uint256[](1);
+        tokenId[0] = 42;
+        (bool success, ) = payable(address(assetManager)).call{ value: 50 ether }("");
+        require(success);
+        assetManager.execute_addLiquidity(tokenId);
+    }
+    // TODO: Batch and edge cases
 
     function test_deepenLiquidity_ETH() public {
         (bool success, ) = payable(address(assetManager)).call{ value: 10 ether }("");
@@ -198,5 +284,93 @@ contract AssetManagerTest is DSTestPlus {
         require(liquidity > 0);
         uint256 stakedLiquidity = assetManager.execute_stakeLiquidity();
         require(stakedLiquidity > 0);
+    }
+
+    function test_claimRewards() public {
+        wethToken.transfer(address(assetManager), 10 ether);
+        uint256 liquidity = assetManager.execute_deepenLiquidity(0, 10 ether, 0);
+        require(liquidity > 0);
+        uint256 stakedLiquidity = assetManager.execute_stakeLiquidity();
+        require(stakedLiquidity > 0);
+        assetManager.execute_claimRewards();
+    }
+
+    function test_rescueERC20_ETH() public {
+        address liqHelper = assetManager.view_liqHelper();
+        hevm.deal(liqHelper, 1 ether);
+        uint256 ethBal = address(assetManager).balance;
+        uint256 recoveredETH = assetManager.execute_rescueERC20(address(0), address(this));
+        require(recoveredETH > 0);
+        uint256 ethBalDiff = address(assetManager).balance - ethBal;
+        require(ethBalDiff > 0);
+    }
+    function test_rescueERC20_WETH() public {
+        address liqHelper = assetManager.view_liqHelper();
+        wethToken.transfer(liqHelper, 1 ether);
+        uint256 wethBal = wethToken.balanceOf(address(assetManager));
+        uint256 recoveredWETH = assetManager.execute_rescueERC20(address(weth), address(this));
+        require(recoveredWETH > 0);
+        uint256 wethBalDiff = wethToken.balanceOf(address(assetManager)) - wethBal;
+        require(wethBalDiff > 0);
+    }
+    function test_rescueERC20_NFTX() public {
+        address liqHelper = assetManager.view_liqHelper();
+        wethToken.approve(address(sushiRouter), 100 ether);
+        address[] memory path = new address[](2);
+        (path[1], path[0]) = assetManager.call_sortTokens(address(weth), address(nftxInv));
+        sushiRouter.swapTokensForExactTokens(1 ether, 100 ether, path, address(liqHelper), block.timestamp + 60 seconds);
+        uint256 nftxBal = nftxInv.balanceOf(address(assetManager));
+        uint256 recoveredNFTX = assetManager.execute_rescueERC20(address(nftxInv), address(this));
+        require(recoveredNFTX > 0);
+        uint256 nftxBalDiff = nftxInv.balanceOf(address(assetManager)) - nftxBal;
+        require(nftxBalDiff > 0);
+    }
+    /*function test_rescueERC20_NFTWETH() public {
+        address liqHelper = assetManager.view_liqHelper();
+        // TODO: Send SLP to liqHelper and execute rescueERC20
+    }*/
+    function test_rescueERC20_ETC() public {
+        testToken.transfer(address(assetManager), 1 ether);
+        uint256 testBal = testToken.balanceOf(address(42));
+        uint256 recoveredTEST = assetManager.execute_rescueERC20(address(testToken), address(42));
+        require(recoveredTEST > 0);
+        uint256 testBalDiff = testToken.balanceOf(address(42)) - testBal;
+        require(testBalDiff > 0);
+    }
+    function test_rescueERC20_ETC_liqHelper() public {
+        address liqHelper = assetManager.view_liqHelper();
+        testToken.transfer(liqHelper, 1 ether);
+        uint256 testBal = testToken.balanceOf(address(42));
+        uint256 recoveredTEST = assetManager.execute_rescueERC20(address(testToken), address(42));
+        require(recoveredTEST > 0);
+        uint256 testBalDiff = testToken.balanceOf(address(42)) - testBal;
+        require(testBalDiff > 0);
+    }
+
+    function test_rescueERC721() public {
+        testNFT.safeTransferFrom(address(this), address(assetManager), 1);
+        require(testNFT.ownerOf(1) == address(assetManager));
+        assetManager.execute_rescueERC721(address(testNFT), address(42), 1);
+        require(testNFT.ownerOf(1) == address(42));
+    }
+    function test_rescueERC721_AlignedAsset() public {
+        hevm.assume(nft.ownerOf(42) > address(0));
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(assetManager), 42);
+        hevm.stopPrank();
+        hevm.expectRevert(AssetManager.AlignedAsset.selector);
+        assetManager.execute_rescueERC721(address(nft), address(42), 42);
+    }
+
+    function test_receive() public {
+        address liqHelper = assetManager.view_liqHelper();
+        (bool success, ) = payable(liqHelper).call{ value: 1 ether }("");
+        require(success);
+    }
+    function test_fallback() public {
+        address liqHelper = assetManager.view_liqHelper();
+        (bool success, ) = payable(liqHelper).call{ value: 1 ether }("fallback");
+        require(success);
     }
 }

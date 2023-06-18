@@ -24,7 +24,7 @@ contract TestingAssetManager is AssetManager {
     function view_nftxLiquidity() public view returns (address) { return (address(_nftxLiquidity)); }
     function view_vaultId() public view returns (uint256) { return (_vaultId); }
 
-    function call_checkBalance(address _token) public view returns (uint256) {return (_checkBalance(IERC20(_token))); }
+    function call_checkBalance(address _token) public view returns (uint256) {return (_checkBalance(_token)); }
     function call_sortTokens(address _tokenA, address _tokenB) public pure returns (address, address) {
         (address token0, address token1) = _sortTokens(_tokenA, _tokenB);
         return (token0, token1);
@@ -42,7 +42,7 @@ contract TestingAssetManager is AssetManager {
         uint112 _nftxInv
     ) public returns (uint256) { return (_deepenLiquidity(_eth, _weth, _nftxInv)); }
     function execute_stakeLiquidity() public returns (uint256) { return (_stakeLiquidity()); }
-    function execute_claimRewards() public returns (uint256) { return (_claimRewards()); }
+    function execute_claimRewards() public { _claimRewards(); }
     function execute_rescueERC20(address _token, address _to) public returns (uint256) {
         return (_rescueERC20(_token, _to));
     }
@@ -50,5 +50,5 @@ contract TestingAssetManager is AssetManager {
         address _address,
         address _to,
         uint256 _tokenId
-    ) public returns (bool) { return (_rescueERC721(_address, _to, _tokenId)); }
+    ) public { _rescueERC721(_address, _to, _tokenId); }
 }

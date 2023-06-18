@@ -59,7 +59,20 @@ interface INFTXStakingZap {
     function addLiquidity721(uint256 vaultId, uint256[] calldata ids, uint256 minWethIn, uint256 wethIn) external returns (uint256);
 }
 
-abstract contract AssetManager {
+/// @notice A generic interface for a contract which properly accepts ERC721 tokens.
+/// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC721.sol)
+abstract contract ERC721TokenReceiver {
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external virtual returns (bytes4) {
+        return ERC721TokenReceiver.onERC721Received.selector;
+    }
+}
+
+abstract contract AssetManager is ERC721TokenReceiver {
 
     error InsufficientBalance();
     error IncorrectOwner();
@@ -85,9 +98,9 @@ abstract contract AssetManager {
     uint256 internal immutable _vaultId;
 
     // Check balance of any token, use zero address for native ETH
-    function _checkBalance(IERC20 _token) internal view returns (uint256) {
-        if (address(_token) == address(0)) { return (address(this).balance); }
-        else { return (_token.balanceOf(address(this))); }
+    function _checkBalance(address _token) internal view returns (uint256) {
+        if (_token == address(0)) { return (address(this).balance); }
+        else { return (IERC20(_token).balanceOf(address(this))); }
     }
 
     // Sort token addresses for LP address derivation
@@ -167,14 +180,16 @@ abstract contract AssetManager {
             reserve1 = _reserve0;
         }
         // Retrieve WETH balance
-        uint256 wethBal = _checkBalance(IERC20(address(_WETH)));
+        uint256 wethBal = _checkBalance(address(_WETH));
         // Calculate value of NFT in WETH using SLP reserves values
         uint256 ethPerNFT = ((10**18 * uint256(reserve1)) / uint256(reserve0));
         uint256 totalRequiredWETH = ethPerNFT * _tokenIds.length;
+        // NOTE: Add 1 wei if _tokenIds > 1 to resolve Uniswap V2 liquidity issues
+        if (_tokenIds.length > 1) { totalRequiredWETH += 1; }
         // Check if contract has enough WETH on hand
         if (wethBal < totalRequiredWETH) {
             // If not, check to see if WETH + ETH balance is enough
-            if ((wethBal + _checkBalance(IERC20(address(0)))) < totalRequiredWETH) {
+            if ((wethBal + _checkBalance(address(0))) < totalRequiredWETH) {
                 // If there just isn't enough ETH, revert
                 revert InsufficientBalance();
             } else {
@@ -194,9 +209,9 @@ abstract contract AssetManager {
         uint112 _nftxInv
     ) internal returns (uint256) {
         // Verify balance of all inputs
-        if (_checkBalance(IERC20(address(0))) < _eth ||
-            _checkBalance(IERC20(address(_WETH))) < _weth ||
-            _checkBalance(_nftxInventory) < _nftxInv
+        if (_checkBalance(address(0)) < _eth ||
+            _checkBalance(address(_WETH)) < _weth ||
+            _checkBalance(address(_nftxInventory)) < _nftxInv
         ) { revert InsufficientBalance(); }
         // Wrap any ETH into WETH
         if (_eth > 0) {
@@ -220,42 +235,36 @@ abstract contract AssetManager {
     // It is not necessary to stake NFTX vault tokens as we are only interested in deepening liquidity
     function _stakeLiquidity() internal returns (uint256 liquidity) {
         // Check available SLP balance
-        liquidity = _checkBalance(_nftxLiquidity);
+        liquidity = _checkBalance(address(_nftxLiquidity));
         // Stake entire balance
         _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
         // Return amount staked
-        liquidity -= _checkBalance(_nftxLiquidity);
+        liquidity -= _checkBalance(address(_nftxLiquidity));
     }
 
     // Claim NFTWETH SLP rewards
-    function _claimRewards() internal returns (uint256) {
-        // Retrieve NFTX inventory/vault token balance
-        uint256 rewards = _checkBalance(_nftxInventory);
+    function _claimRewards() internal {
         // Claim SLP rewards
         _NFTX_LIQUIDITY_STAKING.claimRewards(_vaultId);
-        // Calculate reward amount by checking balance difference
-        uint256 rewardsDiff = _checkBalance(_nftxInventory) - rewards;
-        // Revert if nothing claimed
-        if (rewardsDiff == 0) { revert RewardsClaimFailed(); }
-        // Return reward amount
-        return (rewardsDiff);
     }
 
     // Rescue ETH/ERC20 (use address(0) for ETH)
     function _rescueERC20(address _token, address _to) internal returns (uint256) {
         // If address(0), rescue ETH from liq helper to vault
         if (_token == address(0)) {
-            uint256 balance = _checkBalance(IERC20(_token));
+            uint256 balance = _checkBalance(_token);
             _liqHelper.emergencyWithdrawEther();
-            uint256 balanceDiff = _checkBalance(IERC20(_token)) - balance;
+            uint256 balanceDiff = _checkBalance(_token) - balance;
             return (balanceDiff);
         }
         // If _nftxInventory or _nftxLiquidity, rescue from liq helper to vault
-        else if (_token == address(_nftxInventory) || _token == address(_nftxLiquidity)) {
-            uint256 balance = _checkBalance(IERC20(_token));
-            _liqHelper.emergencyWithdrawErc20(_token);
-            uint256 balanceDiff = _checkBalance(IERC20(_token)) - balance;
-            return (balanceDiff);
+        else if (_token == address(_WETH) || 
+            _token == address(_nftxInventory) ||
+            _token == address(_nftxLiquidity)) {
+                uint256 balance = _checkBalance(_token);
+                _liqHelper.emergencyWithdrawErc20(_token);
+                uint256 balanceDiff = _checkBalance(_token) - balance;
+                return (balanceDiff);
         }
         // If any other token, rescue from liq helper and/or vault and send to recipient
         else {
@@ -264,7 +273,7 @@ abstract contract AssetManager {
                 _liqHelper.emergencyWithdrawErc20(_token);
             }
             // Check updated balance
-            uint256 balance = _checkBalance(IERC20(_token));
+            uint256 balance = _checkBalance(_token);
             // Send entire balance to recipient
             IERC20(_token).transfer(_to, balance);
             return (balance);
@@ -276,16 +285,11 @@ abstract contract AssetManager {
         address _address, 
         address _to,
         uint256 _tokenId
-    ) internal returns (bool) {
+    ) internal {
         // If _address is for the aligned collection, revert
         if (address(_erc721) == _address) { revert AlignedAsset(); }
-        // Otherwise, check if we have it and send to owner
-        else if (IERC721(_address).ownerOf(_tokenId) == address(this)) {
-            IERC721(_address).transferFrom(address(this), _to, _tokenId);
-            return (true);
-        }
-        // Otherwise, revert as we do not own it
-        else { revert IncorrectOwner(); }
+        // Otherwise, attempt to send to recipient
+        else { IERC721(_address).transferFrom(address(this), _to, _tokenId); }
     }
 
     // Receive logic
