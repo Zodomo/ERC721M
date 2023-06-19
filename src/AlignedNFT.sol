@@ -19,7 +19,7 @@ abstract contract AlignedNFT is ERC721 {
 
     AlignmentVault public immutable vault; // Smart contract wallet for tithe funds
     address public immutable alignedNft; // Aligned NFT collection
-    address internal pushRecipient; // Recipient of pushed mint funds
+    address public pushRecipient; // Recipient of pushed mint funds
     uint256 public immutable allocation; // 0 - 500, 150 = 15.0%
     uint256 public totalAllocated; // Total amount of ETH allocated
     uint256 public totalTithed; // Total amount of ETH sent to vault
@@ -43,8 +43,8 @@ abstract contract AlignedNFT is ERC721 {
     }
 
     // View AlignmentVault address
-    function vaultAddress() public view returns (address) {
-        return (address(vault));
+    function vaultBalance() public view returns (uint256) {
+        return (address(vault).balance);
     }
 
     // Change push allocation recipient address
@@ -61,7 +61,7 @@ abstract contract AlignedNFT is ERC721 {
     // Solady ERC721 _mint override to implement mint funds management
     function _mint(address _to, uint256 _tokenId) internal override {
         // Calculate allocation
-        uint256 mintAlloc = FixedPointMathLib.fullMulDiv(allocation, msg.value, 1000);
+        uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 1000);
         // Calculate tithe (remainder)
         uint256 tithe = msg.value - mintAlloc;
 
@@ -85,7 +85,8 @@ abstract contract AlignedNFT is ERC721 {
     function _withdrawAllocation(address _to, uint256 _amount) internal {
         // Confirm inputs are good
         if (_to == address(0)) { revert ZeroAddress(); }
-        if (_amount > address(this).balance) { revert Overdraft(); }
+        if (_amount > address(this).balance && _amount != type(uint256).max) { revert Overdraft(); }
+        if (_amount == type(uint256).max) { _amount = address(this).balance; }
 
         // Process withdrawal
         (bool success, ) = payable(_to).call{ value: _amount }("");

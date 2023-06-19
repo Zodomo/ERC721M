@@ -5,8 +5,8 @@ import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
 import "../lib/solady/test/utils/mocks/MockERC20.sol";
 import "../lib/solady/test/utils/mocks/MockERC721.sol";
+import "liquidity-helper/UniswapV2LiquidityHelper.sol";
 import "./TestingAssetManager.sol";
-import "../src/UniswapV2LiquidityHelper.sol";
 
 contract AssetManagerTest is DSTestPlus, ERC721Holder  {
     

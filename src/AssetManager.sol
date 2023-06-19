@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
 import "v2-core/interfaces/IUniswapV2Pair.sol";
-import "./UniswapV2LiquidityHelper.sol";
+import "liquidity-helper/UniswapV2LiquidityHelper.sol";
 
 interface INFTXFactory {
     function vaultsForAsset(address asset) external view returns (address[] memory);
@@ -172,17 +172,14 @@ abstract contract AssetManager is ERC721TokenReceiver {
         }
         // Retrieve SLP reserves to calculate price of NFT token in WETH
         (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(_nftxLiquidity)).getReserves();
-        // Reverse reserves values if token1 isn't WETH
-        if (IUniswapV2Pair(address(_nftxLiquidity)).token1() != address(_WETH)) {
-            uint112 _reserve0 = reserve0;
-            uint112 _reserve1 = reserve1;
-            reserve0 = _reserve1;
-            reserve1 = _reserve0;
-        }
         // Retrieve WETH balance
         uint256 wethBal = _checkBalance(address(_WETH));
         // Calculate value of NFT in WETH using SLP reserves values
-        uint256 ethPerNFT = ((10**18 * uint256(reserve1)) / uint256(reserve0));
+        uint256 ethPerNFT;
+        // Reverse reserve values if token1 isn't WETH
+        if (IUniswapV2Pair(address(_nftxLiquidity)).token1() != address(_WETH)) {
+            ethPerNFT = ((10**18 * uint256(reserve0)) / uint256(reserve1));
+        } else { ethPerNFT = ((10**18 * uint256(reserve1)) / uint256(reserve0)); }
         uint256 totalRequiredWETH = ethPerNFT * _tokenIds.length;
         // NOTE: Add 1 wei if _tokenIds > 1 to resolve Uniswap V2 liquidity issues
         if (_tokenIds.length > 1) { totalRequiredWETH += 1; }

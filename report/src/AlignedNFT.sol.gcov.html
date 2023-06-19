@@ -31,27 +31,27 @@
             <td class="headerValue">lcov.info</td>
             <td></td>
             <td class="headerItem">Lines:</td>
-            <td class="headerCovTableEntry">0</td>
-            <td class="headerCovTableEntry">17</td>
-            <td class="headerCovTableEntryLo">0.0 %</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
           </tr>
           <tr>
             <td class="headerItem">Date:</td>
-            <td class="headerValue">2023-06-18 13:57:53</td>
+            <td class="headerValue">2023-06-18 21:00:20</td>
             <td></td>
             <td class="headerItem">Functions:</td>
-            <td class="headerCovTableEntry">0</td>
             <td class="headerCovTableEntry">5</td>
-            <td class="headerCovTableEntryLo">0.0 %</td>
+            <td class="headerCovTableEntry">5</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
           </tr>
           <tr>
             <td></td>
             <td></td>
             <td></td>
             <td class="headerItem">Branches:</td>
-            <td class="headerCovTableEntry">0</td>
-            <td class="headerCovTableEntry">14</td>
-            <td class="headerCovTableEntryLo">0.0 %</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntryHi">93.8 %</td>
           </tr>
           <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
         </table>
@@ -90,7 +90,7 @@
 <a name="19"><span class="lineNum">      19 </span>                :            : </a>
 <a name="20"><span class="lineNum">      20 </span>                :            :     AlignmentVault public immutable vault; // Smart contract wallet for tithe funds</a>
 <a name="21"><span class="lineNum">      21 </span>                :            :     address public immutable alignedNft; // Aligned NFT collection</a>
-<a name="22"><span class="lineNum">      22 </span>                :            :     address internal pushRecipient; // Recipient of pushed mint funds</a>
+<a name="22"><span class="lineNum">      22 </span>                :            :     address public pushRecipient; // Recipient of pushed mint funds</a>
 <a name="23"><span class="lineNum">      23 </span>                :            :     uint256 public immutable allocation; // 0 - 500, 150 = 15.0%</a>
 <a name="24"><span class="lineNum">      24 </span>                :            :     uint256 public totalAllocated; // Total amount of ETH allocated</a>
 <a name="25"><span class="lineNum">      25 </span>                :            :     uint256 public totalTithed; // Total amount of ETH sent to vault</a>
@@ -114,55 +114,56 @@
 <a name="43"><span class="lineNum">      43 </span>                :            :     }</a>
 <a name="44"><span class="lineNum">      44 </span>                :            : </a>
 <a name="45"><span class="lineNum">      45 </span>                :            :     // View AlignmentVault address</a>
-<a name="46"><span class="lineNum">      46 </span>                :            :     function vaultAddress() public view returns (address) {</a>
-<a name="47"><span class="lineNum">      47 </span>                :<span class="lineNoCov">          0 :         return (address(vault));</span></a>
+<a name="46"><span class="lineNum">      46 </span>                :            :     function vaultBalance() public view returns (uint256) {</a>
+<a name="47"><span class="lineNum">      47 </span>                :<span class="lineCov">        512 :         return (address(vault).balance);</span></a>
 <a name="48"><span class="lineNum">      48 </span>                :            :     }</a>
 <a name="49"><span class="lineNum">      49 </span>                :            : </a>
 <a name="50"><span class="lineNum">      50 </span>                :            :     // Change push allocation recipient address</a>
 <a name="51"><span class="lineNum">      51 </span>                :            :     function _changePushRecipient(address _to) internal {</a>
-<a name="52"><span class="lineNum">      52 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchNoExec" title="Branch 1 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (_to == address(0)) { revert ZeroAddress(); }</span></a>
-<a name="53"><span class="lineNum">      53 </span>                :<span class="lineNoCov">          0 :         pushRecipient = _to;</span></a>
+<a name="52"><span class="lineNum">      52 </span>        [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span><span class="branchCov" title="Branch 1 was taken 257 times"> + </span>]:<span class="lineCov">        258 :         if (_to == address(0)) { revert ZeroAddress(); }</span></a>
+<a name="53"><span class="lineNum">      53 </span>                :<span class="lineCov">        257 :         pushRecipient = _to;</span></a>
 <a name="54"><span class="lineNum">      54 </span>                :            :     }</a>
 <a name="55"><span class="lineNum">      55 </span>                :            : </a>
 <a name="56"><span class="lineNum">      56 </span>                :            :     // Toggle push status</a>
 <a name="57"><span class="lineNum">      57 </span>                :            :     function _setPushStatus(bool _pushStatus) internal {</a>
-<a name="58"><span class="lineNum">      58 </span>                :<span class="lineNoCov">          0 :         pushStatus = _pushStatus;</span></a>
+<a name="58"><span class="lineNum">      58 </span>                :<span class="lineCov">        256 :         pushStatus = _pushStatus;</span></a>
 <a name="59"><span class="lineNum">      59 </span>                :            :     }</a>
 <a name="60"><span class="lineNum">      60 </span>                :            : </a>
 <a name="61"><span class="lineNum">      61 </span>                :            :     // Solady ERC721 _mint override to implement mint funds management</a>
 <a name="62"><span class="lineNum">      62 </span>                :            :     function _mint(address _to, uint256 _tokenId) internal override {</a>
 <a name="63"><span class="lineNum">      63 </span>                :            :         // Calculate allocation</a>
-<a name="64"><span class="lineNum">      64 </span>                :<span class="lineNoCov">          0 :         uint256 mintAlloc = FixedPointMathLib.fullMulDiv(allocation, msg.value, 1000);</span></a>
+<a name="64"><span class="lineNum">      64 </span>                :<span class="lineCov">       1796 :         uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 1000);</span></a>
 <a name="65"><span class="lineNum">      65 </span>                :            :         // Calculate tithe (remainder)</a>
-<a name="66"><span class="lineNum">      66 </span>                :<span class="lineNoCov">          0 :         uint256 tithe = msg.value - mintAlloc;</span></a>
+<a name="66"><span class="lineNum">      66 </span>                :<span class="lineCov">       1796 :         uint256 tithe = msg.value - mintAlloc;</span></a>
 <a name="67"><span class="lineNum">      67 </span>                :            : </a>
 <a name="68"><span class="lineNum">      68 </span>                :            :         // If in push mode, pay allocation recipient with every mint, else store in contract</a>
-<a name="69"><span class="lineNum">      69 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchNoExec" title="Branch 1 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (pushStatus) {</span></a>
-<a name="70"><span class="lineNum">      70 </span>                :<span class="lineNoCov">          0 :             (bool pushSuccess, ) = payable(pushRecipient).call{ value: mintAlloc }(&quot;&quot;);</span></a>
-<a name="71"><span class="lineNum">      71 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchNoExec" title="Branch 1 was not executed"> # </span>]:<span class="lineNoCov">          0 :             if (!pushSuccess) { revert TransferFailed(); }</span></a>
+<a name="69"><span class="lineNum">      69 </span>        [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span><span class="branchCov" title="Branch 1 was taken 256 times"> + </span>]:<span class="lineCov">       1796 :         if (pushStatus) {</span></a>
+<a name="70"><span class="lineNum">      70 </span>                :<span class="lineCov">        257 :             (bool pushSuccess, ) = payable(pushRecipient).call{ value: mintAlloc }(&quot;&quot;);</span></a>
+<a name="71"><span class="lineNum">      71 </span>        [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span><span class="branchCov" title="Branch 1 was taken 256 times"> + </span>]:<span class="lineCov">        257 :             if (!pushSuccess) { revert TransferFailed(); }</span></a>
 <a name="72"><span class="lineNum">      72 </span>                :            :         }</a>
 <a name="73"><span class="lineNum">      73 </span>                :            :         // Count allocation</a>
-<a name="74"><span class="lineNum">      74 </span>                :<span class="lineNoCov">          0 :         totalAllocated += mintAlloc;</span></a>
+<a name="74"><span class="lineNum">      74 </span>                :<span class="lineCov">       1795 :         totalAllocated += mintAlloc;</span></a>
 <a name="75"><span class="lineNum">      75 </span>                :            : </a>
 <a name="76"><span class="lineNum">      76 </span>                :            :         // Send tithe to AlignmentVault</a>
-<a name="77"><span class="lineNum">      77 </span>                :<span class="lineNoCov">          0 :         (bool titheSuccess, ) = payable(address(vault)).call{ value: tithe }(&quot;&quot;);</span></a>
-<a name="78"><span class="lineNum">      78 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchNoExec" title="Branch 1 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (!titheSuccess) { revert TransferFailed(); }</span></a>
+<a name="77"><span class="lineNum">      77 </span>                :<span class="lineCov">       1795 :         (bool titheSuccess, ) = payable(address(vault)).call{ value: tithe }(&quot;&quot;);</span></a>
+<a name="78"><span class="lineNum">      78 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchCov" title="Branch 1 was taken 1795 times"> + </span>]:<span class="lineCov">       1795 :         if (!titheSuccess) { revert TransferFailed(); }</span></a>
 <a name="79"><span class="lineNum">      79 </span>                :            : </a>
 <a name="80"><span class="lineNum">      80 </span>                :            :         // Process ERC721 mint logic</a>
-<a name="81"><span class="lineNum">      81 </span>                :<span class="lineNoCov">          0 :         super._mint(_to, _tokenId);</span></a>
+<a name="81"><span class="lineNum">      81 </span>                :<span class="lineCov">       1795 :         super._mint(_to, _tokenId);</span></a>
 <a name="82"><span class="lineNum">      82 </span>                :            :     }</a>
 <a name="83"><span class="lineNum">      83 </span>                :            : </a>
 <a name="84"><span class="lineNum">      84 </span>                :            :     // &quot;Pull&quot; withdrawal method to send amount of pooled allocation to an address</a>
 <a name="85"><span class="lineNum">      85 </span>                :            :     function _withdrawAllocation(address _to, uint256 _amount) internal {</a>
 <a name="86"><span class="lineNum">      86 </span>                :            :         // Confirm inputs are good</a>
-<a name="87"><span class="lineNum">      87 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchNoExec" title="Branch 1 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (_to == address(0)) { revert ZeroAddress(); }</span></a>
-<a name="88"><span class="lineNum">      88 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchNoExec" title="Branch 1 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (_amount &gt; address(this).balance) { revert Overdraft(); }</span></a>
-<a name="89"><span class="lineNum">      89 </span>                :            : </a>
-<a name="90"><span class="lineNum">      90 </span>                :            :         // Process withdrawal</a>
-<a name="91"><span class="lineNum">      91 </span>                :<span class="lineNoCov">          0 :         (bool success, ) = payable(_to).call{ value: _amount }(&quot;&quot;);</span></a>
-<a name="92"><span class="lineNum">      92 </span>        [<span class="branchNoExec" title="Branch 0 was not executed"> # </span><span class="branchNoExec" title="Branch 1 was not executed"> # </span>]:<span class="lineNoCov">          0 :         if (!success) { revert TransferFailed(); }</span></a>
-<a name="93"><span class="lineNum">      93 </span>                :            :     }</a>
-<a name="94"><span class="lineNum">      94 </span>                :            : }</a>
+<a name="87"><span class="lineNum">      87 </span>        [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span><span class="branchCov" title="Branch 1 was taken 514 times"> + </span>]:<span class="lineCov">        515 :         if (_to == address(0)) { revert ZeroAddress(); }</span></a>
+<a name="88"><span class="lineNum">      88 </span>        [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span><span class="branchCov" title="Branch 1 was taken 513 times"> + </span>]:<span class="lineCov">        514 :         if (_amount &gt; address(this).balance &amp;&amp; _amount != type(uint256).max) { revert Overdraft(); }</span></a>
+<a name="89"><span class="lineNum">      89 </span>        [<span class="branchCov" title="Branch 0 was taken 256 times"> + </span><span class="branchCov" title="Branch 1 was taken 513 times"> + </span>]:<span class="lineCov">        513 :         if (_amount == type(uint256).max) { _amount = address(this).balance; }</span></a>
+<a name="90"><span class="lineNum">      90 </span>                :            : </a>
+<a name="91"><span class="lineNum">      91 </span>                :            :         // Process withdrawal</a>
+<a name="92"><span class="lineNum">      92 </span>                :<span class="lineCov">        513 :         (bool success, ) = payable(_to).call{ value: _amount }(&quot;&quot;);</span></a>
+<a name="93"><span class="lineNum">      93 </span>        [<span class="branchCov" title="Branch 0 was taken 1 time"> + </span><span class="branchCov" title="Branch 1 was taken 512 times"> + </span>]:<span class="lineCov">        513 :         if (!success) { revert TransferFailed(); }</span></a>
+<a name="94"><span class="lineNum">      94 </span>                :            :     }</a>
+<a name="95"><span class="lineNum">      95 </span>                :            : }</a>
 </pre>
       </td>
     </tr>

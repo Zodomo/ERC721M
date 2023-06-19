@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
+import "liquidity-helper/UniswapV2LiquidityHelper.sol";
 import "../src/AlignmentVault.sol";
-import "../src/UniswapV2LiquidityHelper.sol";
 
 contract AlignmentVaultTest is DSTestPlus {
 
