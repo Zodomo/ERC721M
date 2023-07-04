@@ -181,8 +181,8 @@ abstract contract AssetManager is ERC721TokenReceiver {
             ethPerNFT = ((10**18 * uint256(reserve0)) / uint256(reserve1));
         } else { ethPerNFT = ((10**18 * uint256(reserve1)) / uint256(reserve0)); }
         uint256 totalRequiredWETH = ethPerNFT * _tokenIds.length;
-        // NOTE: Add 1 wei if _tokenIds > 1 to resolve Uniswap V2 liquidity issues
-        if (_tokenIds.length > 1) { totalRequiredWETH += 1; }
+        // NOTE: Add 1 wei per token if _tokenIds > 1 to resolve Uniswap V2 liquidity issues
+        if (_tokenIds.length > 1) { totalRequiredWETH += (_tokenIds.length * 1); }
         // Check if contract has enough WETH on hand
         if (wethBal < totalRequiredWETH) {
             // If not, check to see if WETH + ETH balance is enough
@@ -196,7 +196,7 @@ abstract contract AssetManager is ERC721TokenReceiver {
             }
         }
         // Add NFT + WETH liquidity to NFTX and return amount of SLP deposited
-        return (_NFTX_STAKING_ZAP.addLiquidity721(_vaultId, _tokenIds, totalRequiredWETH, totalRequiredWETH));
+        return (_NFTX_STAKING_ZAP.addLiquidity721(_vaultId, _tokenIds, 1, totalRequiredWETH));
     }
 
     // Add any amount of ETH, WETH, and NFTX Inventory tokens to NFTWETH SLP

@@ -181,9 +181,6 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
         tokenId[0] = 42;
         assetManager.execute_addLiquidity(tokenId);
     }
-    /* TODO: Fix the rounding error somewhere in this function
-    // Whenever more than 1 NFT is being added, sometimes UniswapV2Router throws INSUFFICIENT_B_AMOUNT
-    // See NOTE in AssetManager.sol::_addLiquidity() for attempt at fix
     function test_addLiquidityBatch() public {
         hevm.assume(nft.ownerOf(42) > address(0));
         hevm.assume(nft.ownerOf(69) > address(0));
@@ -208,7 +205,26 @@ contract AssetManagerTest is DSTestPlus, ERC721Holder  {
         tokenIds[0] = 42;
         tokenIds[1] = 69;
         assetManager.execute_addLiquidity(tokenIds);
-    }*/
+    }
+    function test_addLiquidityBatch(uint256 _amount) public {
+        hevm.assume(_amount != 0);
+        hevm.assume(_amount >= 5);
+        hevm.assume(_amount <= 100);
+        uint256[] memory tokenIds = new uint256[](_amount);
+        uint256 ethAmount = _amount * 42 ether;
+        hevm.deal(address(this), ethAmount);
+        for (uint256 i = 1; i < _amount + 1; i++) {
+            address miladyOwner = nft.ownerOf(i);
+            hevm.startPrank(miladyOwner);
+            nft.approve(address(this), i);
+            nft.transferFrom(miladyOwner, address(assetManager), i);
+            hevm.stopPrank();
+            tokenIds[i - 1] = i;
+        }
+        weth.deposit{ value: ethAmount }();
+        IERC20(address(weth)).transfer(address(assetManager), ethAmount);
+        assetManager.execute_addLiquidity(tokenIds);
+    }
     function test_addLiquidity_InsufficientBalance_NFTs() public {
         uint256[] memory tokenIds = new uint256[](2);
         tokenIds[0] = 42;
