@@ -22,6 +22,6 @@ contract TestingAlignedNFT is AlignedNFT {
     function execute_changePushRecipient(address _to) public { _changePushRecipient(_to); }
     function execute_setPushStatus(bool _pushStatus) public { _setPushStatus(_pushStatus); }
 
-    function execute_mint(address _to, uint256 _tokenId) public payable { _mint(_to, _tokenId); }
+    function execute_mint(address _to, uint256 _amount) public payable { _mint(_to, _amount); }
     function execute_withdrawAllocation(address _to, uint256 _amount) public { _withdrawAllocation(_to, _amount); }
 }

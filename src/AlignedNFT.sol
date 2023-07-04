@@ -13,6 +13,7 @@ abstract contract AlignedNFT is ERC721 {
     error TransferFailed();
     error Overdraft();
     error ZeroAddress();
+    error ZeroQuantity();
 
     event VaultDeployed(address indexed vault);
     event AllocationSet(uint256 indexed allocation);
@@ -23,6 +24,7 @@ abstract contract AlignedNFT is ERC721 {
     uint256 public immutable allocation; // 0 - 500, 150 = 15.0%
     uint256 public totalAllocated; // Total amount of ETH allocated
     uint256 public totalTithed; // Total amount of ETH sent to vault
+    uint256 public count; // Current number of tokens minted
     bool public pushStatus; // Push sends funds to allocation recipient each mint
 
     constructor(
@@ -59,7 +61,9 @@ abstract contract AlignedNFT is ERC721 {
     }
 
     // Solady ERC721 _mint override to implement mint funds management
-    function _mint(address _to, uint256 _tokenId) internal override {
+    function _mint(address _to, uint256 _amount) internal override {
+        // Prevent minting zero NFTs
+        if (_amount == 0) { revert ZeroQuantity(); }
         // Calculate allocation
         uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 1000);
         // Calculate tithe (remainder)
@@ -77,8 +81,11 @@ abstract contract AlignedNFT is ERC721 {
         (bool titheSuccess, ) = payable(address(vault)).call{ value: tithe }("");
         if (!titheSuccess) { revert TransferFailed(); }
 
-        // Process ERC721 mint logic
-        super._mint(_to, _tokenId);
+        // Process ERC721 mints
+        for (uint256 i; i < _amount;) {
+            super._mint(_to, ++count);
+            unchecked { ++i; }
+        }
     }
 
     // "Pull" withdrawal method to send amount of pooled allocation to an address

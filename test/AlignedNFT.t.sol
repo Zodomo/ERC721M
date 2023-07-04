@@ -52,12 +52,13 @@ contract AlignedNFTTest is DSTestPlus {
         require(_tokenId == tokenId);
     }
 
-    function testVaultBalance(uint256 _tokenId, uint256 _amount) public {
-        hevm.assume(_tokenId <= 1000000);
-        hevm.assume(_amount > 1 gwei);
-        hevm.assume(_amount < 0.01 ether);
-        alignedNFT_HA.execute_mint{ value: _amount }(address(this), _tokenId);
-        uint256 tithe = (_amount * 850) / 1000;
+    function testVaultBalance(uint256 _amount, uint256 _payment) public {
+        hevm.assume(_amount != 0);
+        hevm.assume(_amount <= 10000);
+        hevm.assume(_payment > 1 gwei);
+        hevm.assume(_payment < 0.01 ether);
+        alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
+        uint256 tithe = (_payment * 850) / 1000;
         require(alignedNFT_HA.vaultBalance() == tithe);
     }
 
@@ -75,76 +76,88 @@ contract AlignedNFTTest is DSTestPlus {
         require(alignedNFT_HA.pushStatus() == _pushStatus);
     }
 
-    function test_mint_ownership(address _to, uint256 _tokenId) public {
+    function test_mint_ownership(address _to, uint256 _amount) public {
         hevm.assume(_to != address(0));
-        hevm.assume(_tokenId <= 1000000);
-        alignedNFT_HA.execute_mint(_to, _tokenId);
-        require(IERC721(address(alignedNFT_HA)).ownerOf(_tokenId) == _to);
+        hevm.assume(_amount != 0);
+        hevm.assume(_amount <= 10000);
+        alignedNFT_HA.execute_mint(_to, _amount);
+        for (uint256 i; i < _amount; ++i) {
+            require(IERC721(address(alignedNFT_HA)).ownerOf(i + 1) == _to);
+        }
     }
-    function test_mint_tithe(uint256 _tokenId, uint256 _amount) public {
-        hevm.assume(_tokenId <= 1000000);
-        hevm.assume(_amount > 1 gwei);
-        hevm.assume(_amount < 0.01 ether);
-        alignedNFT_HA.execute_mint{ value: _amount }(address(this), _tokenId);
-        uint256 tithe = (_amount * 850) / 1000;
+    function test_mint_tithe(uint256 _amount, uint256 _payment) public {
+        hevm.assume(_amount != 0);
+        hevm.assume(_amount <= 10000);
+        hevm.assume(_payment > 1 gwei);
+        hevm.assume(_payment < 0.01 ether);
+        alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
+        uint256 tithe = (_payment * 850) / 1000;
         require(alignedNFT_HA.vaultBalance() == tithe);
     }
-    function test_mint_pushAllocation(uint256 _tokenId, uint256 _amount) public {
+    function test_mint_pushAllocation(uint256 _amount, uint256 _payment) public {
         uint256 dust = address(42).balance;
-        hevm.assume(_tokenId <= 1000000);
-        hevm.assume(_amount > 1 gwei);
-        hevm.assume(_amount < 0.01 ether);
-        alignedNFT_LA.execute_mint{ value: _amount }(address(this), _tokenId);
-        uint256 allocation = FixedPointMathLib.fullMulDivUp(420, _amount, 1000);
+        hevm.assume(_amount != 0);
+        hevm.assume(_amount <= 10000);
+        hevm.assume(_payment > 1 gwei);
+        hevm.assume(_payment < 0.01 ether);
+        alignedNFT_LA.execute_mint{ value: _payment }(address(this), _amount);
+        uint256 allocation = FixedPointMathLib.fullMulDivUp(420, _payment, 1000);
         require((address(42).balance - dust) == allocation);
     }
-    function test_mint_poolAllocation(uint256 _tokenId, uint256 _amount) public {
-        hevm.assume(_tokenId <= 1000000);
-        hevm.assume(_amount > 1 gwei);
-        hevm.assume(_amount < 0.01 ether);
-        alignedNFT_HA.execute_mint{ value: _amount }(address(this), _tokenId);
-        uint256 allocation = FixedPointMathLib.fullMulDivUp(150, _amount, 1000);
+    function test_mint_poolAllocation(uint256 _amount, uint256 _payment) public {
+        hevm.assume(_amount != 0);
+        hevm.assume(_amount <= 10000);
+        hevm.assume(_payment > 1 gwei);
+        hevm.assume(_payment < 0.01 ether);
+        alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
+        uint256 allocation = FixedPointMathLib.fullMulDivUp(150, _payment, 1000);
         require(address(alignedNFT_HA).balance == allocation);
     }
     function test_mint_TransferFailed_push() public {
         RevertingReceiver rr = new RevertingReceiver();
         alignedNFT_LA.execute_changePushRecipient(address(rr));
         hevm.expectRevert(AlignedNFT.TransferFailed.selector);
-        alignedNFT_LA.execute_mint{ value: 100 gwei }(address(this), 69);
+        alignedNFT_LA.execute_mint{ value: 100 gwei }(address(this), 1);
+    }
+    function test_mint_ZeroQuantity() public {
+        hevm.expectRevert(AlignedNFT.ZeroQuantity.selector);
+        alignedNFT_LA.execute_mint{ value: 0.01 ether }(address(this), 0);
     }
 
-    function test_withdrawAllocation_max(uint256 _tokenId, uint256 _amount) public {
+    function test_withdrawAllocation_max(uint256 _amount, uint256 _payment) public {
         uint256 dust = address(42).balance;
-        hevm.assume(_tokenId <= 1000000);
-        hevm.assume(_amount > 1 gwei);
-        hevm.assume(_amount < 0.01 ether);
-        alignedNFT_HA.execute_mint{ value: _amount }(address(this), _tokenId);
-        uint256 allocation = FixedPointMathLib.fullMulDivUp(150, _amount, 1000);
+        hevm.assume(_amount != 0);
+        hevm.assume(_amount <= 10000);
+        hevm.assume(_payment > 1 gwei);
+        hevm.assume(_payment < 0.01 ether);
+        alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
+        uint256 allocation = FixedPointMathLib.fullMulDivUp(150, _payment, 1000);
         alignedNFT_HA.execute_withdrawAllocation(address(42), type(uint256).max);
         require((address(42).balance - dust) == allocation);
     }
-    function test_withdrawAllocation_exact(uint256 _tokenId, uint256 _amount) public {
+    function test_withdrawAllocation_exact(uint256 _amount, uint256 _payment) public {
         uint256 dust = address(42).balance;
-        hevm.assume(_tokenId <= 1000000);
-        hevm.assume(_amount > 1 gwei);
-        hevm.assume(_amount < 0.01 ether);
-        alignedNFT_HA.execute_mint{ value: _amount }(address(this), _tokenId);
+        hevm.assume(_amount != 0);
+        hevm.assume(_amount <= 10000);
+        hevm.assume(_payment > 1 gwei);
+        hevm.assume(_payment < 0.01 ether);
+        alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
         alignedNFT_HA.execute_withdrawAllocation(address(42), 100000);
         require((address(42).balance - dust) == 100000);
     }
     function test_withdrawAllocation_ZeroAddress() public {
-        alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 69);
+        alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 1);
         hevm.expectRevert(AlignedNFT.ZeroAddress.selector);
         alignedNFT_HA.execute_withdrawAllocation(address(0), 100000);
     }
     function test_withdrawAllocation_Overdraft() public {
-        alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 69);
+        alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 1);
         hevm.expectRevert(AlignedNFT.Overdraft.selector);
         alignedNFT_HA.execute_withdrawAllocation(address(42), 101 gwei);
     }
     function test_withdrawAllocation_TransferFailed() public {
         RevertingReceiver rr = new RevertingReceiver();
-        alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 69);
+        alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 1);
         hevm.expectRevert(AlignedNFT.TransferFailed.selector);
         alignedNFT_HA.execute_withdrawAllocation(address(rr), 15 gwei);
     }

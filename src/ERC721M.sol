@@ -28,7 +28,6 @@ contract ERC721M is Ownable, AlignedNFT {
     bool public uriLocked;
     bool public mintOpen;
     uint256 public immutable totalSupply;
-    uint256 public count;
     uint256 public price;
 
     modifier mintable() {
@@ -98,10 +97,7 @@ contract ERC721M is Ownable, AlignedNFT {
     function mint(address _to, uint256 _amount) public payable mintable {
         if (msg.value < (price * _amount)) { revert InsufficientPayment(); }
         if (count + _amount > totalSupply) { revert CapExceeded(); }
-        for (uint256 i; i < _amount;) {
-            _mint(_to, ++count);
-            unchecked { ++i; }
-        }
+        _mint(_to, _amount);
     }
 
     function wrap(uint256 _amount) public virtual onlyOwner { vault.wrap(_amount); }

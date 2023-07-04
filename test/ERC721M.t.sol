@@ -95,14 +95,13 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(template.uriLocked() == true);
     }
 
-    // TODO: Fix AlignedNFT.sol _mint() not being aware of _amount
-    // First call of _mint() is taking all the funds before next iterations can run
-    /*function testMint(address _to, uint256 _amount) public {
+    function testMint(address _to, uint256 _amount) public {
+        hevm.assume(_amount != 0);
         hevm.assume(_amount <= 100);
         hevm.assume(_to != address(0));
         template.openMint();
         template.mint{ value: 0.01 ether * _amount }(_to, _amount);
-    }*/
+    }
     function testMint_InsufficientPayment() public {
         template.openMint();
         hevm.expectRevert(ERC721M.InsufficientPayment.selector);
@@ -112,13 +111,12 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         hevm.expectRevert(ERC721M.MintClosed.selector);
         template.mint{ value: 0.01 ether }(address(this), 1);
     }
-    // TODO: Fix AlignedNFT.sol _mint count awareness bug to resolve this
-    /*function testMint_CapReached() public {
+    function testMint_CapReached() public {
         template.openMint();
         template.mint{ value: 0.01 ether * 100 }(address(this), 100);
         hevm.expectRevert(ERC721M.CapReached.selector);
         template.mint{ value: 0.01 ether }(address(this), 1);
-    }*/
+    }
     function testMint_CapExceeded() public {
         template.openMint();
         hevm.expectRevert(ERC721M.CapExceeded.selector);
