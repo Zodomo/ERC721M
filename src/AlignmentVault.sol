@@ -43,6 +43,80 @@ abstract contract ERC721TokenReceiver {
     }
 }
 
+library SeaportStructs {
+
+    // ISeaport.AdvancedOrder
+    struct AdvancedOrder {
+        OrderParameters parameters;
+        uint120 numerator;
+        uint120 denominator;
+        bytes signature;
+        bytes extraData;
+    }
+
+    struct OrderParameters {
+        address offerer;
+        address zone;
+        OfferItem[] offer;
+        ConsiderationItem[] consideration;
+        OrderType orderType;
+        uint256 startTime;
+        uint256 endTime;
+        bytes32 zoneHash;
+        uint256 salt;
+        bytes32 conduitKey;
+        uint256 totalOriginalConsiderationItems;
+    }
+
+    struct OfferItem {
+        ItemType itemType;
+        address token;
+        uint256 identifierOrCriteria;
+        uint256 startAmount;
+        uint256 endAmount;
+    }
+
+    struct ConsiderationItem {
+        ItemType itemType;
+        address token;
+        uint256 identifierOrCriteria;
+        uint256 startAmount;
+        uint256 endAmount;
+        address recipient;
+    }
+
+    enum OrderType {
+        FULL_OPEN,
+        PARTIAL_OPEN,
+        FULL_RESTRICTED,
+        PARTIAL_RESTRICTED
+    }
+
+    enum ItemType {
+        NATIVE,
+        ERC20,
+        ERC721,
+        ERC1155,
+        ERC721_WITH_CRITERIA,
+        ERC1155_WITH_CRITERIA
+    }
+
+    // ETHListingParams
+    struct ETHListingParams {
+        address fillTo;
+        address refundTo;
+        bool revertIfIncomplete;
+        // The total amount of ETH to be provided when filling
+        uint256 amount;
+    }
+
+    // Fee
+    struct Fee {
+        address recipient;
+        uint256 amount;
+    }
+}
+
 contract AlignmentVault is Ownable, ERC721TokenReceiver {
 
     error InsufficientBalance();
@@ -97,6 +171,11 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
             spotPrice = ((10**18 * uint256(reserve0)) / uint256(reserve1));
         } else { spotPrice = ((10**18 * uint256(reserve1)) / uint256(reserve0)); }
         return (spotPrice);
+    }
+
+    // Parse NFT order calldata to retrieve NFT collection address and order price
+    function _parseCalldata(bytes calldata _calldata) internal pure returns (address, uint256) {
+
     }
 
     constructor(address _nft) payable {
