@@ -79,6 +79,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     error IncorrectOwner();
     error IdenticalAddresses();
     error ZeroAddress();
+    error ZeroValues();
     error NFTXVaultDoesntExist();
     error RewardsClaimFailed();
     error AlignedAsset();
@@ -250,13 +251,28 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     }
 
     // Claim NFTWETH SLP rewards
-    function claimRewards() public onlyOwner {
+    function claimRewards(address _recipient) public onlyOwner {
         // Retrieve balance to diff against
         uint256 invTokenBal = _nftxInventory.balanceOf(address(this));
         // Claim SLP rewards
         _NFTX_LIQUIDITY_STAKING.claimRewards(_vaultId);
         // Determine reward amount
         uint256 reward = _nftxInventory.balanceOf(address(this)) - invTokenBal;
+        // Send 50% to recipient, remainder stored in contract
+        _nftxInventory.transfer(_recipient, reward / 2);
+    }
+
+    // Compound NFTWETH SLP rewards, optionally include ETH/WETH
+    function compoundRewards(uint112 _eth, uint112 _weth) public onlyOwner {
+        // Retrieve balance to diff against
+        uint112 invTokenBal = uint112(_nftxInventory.balanceOf(address(this)));
+        // Claim SLP rewards
+        _NFTX_LIQUIDITY_STAKING.claimRewards(_vaultId);
+        // Determine reward amount
+        uint112 reward = uint112(_nftxInventory.balanceOf(address(this))) - invTokenBal;
+        if (_eth == 0 && _weth == 0 && reward == 0) { revert ZeroValues(); }
+        // Deepen liquidity with entire reward amount and any optional ETH/WETH balance
+        deepenLiquidity(_eth, _weth, reward);
     }
 
     // Rescue tokens from vault and/or liq helper

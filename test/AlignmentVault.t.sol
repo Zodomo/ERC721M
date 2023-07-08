@@ -316,7 +316,18 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(liquidity > 0);
         uint256 stakedLiquidity = alignmentVault.execute_stakeLiquidity();
         require(stakedLiquidity > 0);
-        alignmentVault.execute_claimRewards();
+        alignmentVault.execute_claimRewards(address(this));
+    }
+    
+    function test_compoundRewards_ETHWETH() public {
+        (bool success, ) = payable(address(alignmentVault)).call{ value: 2 ether }("");
+        require(success);
+        alignmentVault.execute_wrap(1 ether);
+        alignmentVault.execute_compoundRewards(1 ether, 1 ether);
+    }
+    function test_compoundRewards_ZeroValues() public {
+        hevm.expectRevert(AlignmentVault.ZeroValues.selector);
+        alignmentVault.execute_compoundRewards(0, 0);
     }
 
     function test_rescueERC20_ETH() public {

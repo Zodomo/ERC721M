@@ -166,7 +166,13 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.stakeLiquidity();
     }
     function testClaimRewards() public {
-        template.claimRewards();
+        template.claimRewards(address(this));
+    }
+    function testCompoundRewards() public {
+        (bool success, ) = payable(address(template.vault())).call{ value: 2 ether }("");
+        require(success);
+        template.wrap(1 ether);
+        template.compoundRewards(1 ether, 1 ether);
     }
 
     function testRescueERC20() public {

@@ -109,7 +109,8 @@ contract ERC721M is Ownable, AlignedNFT {
         uint112 _nftxInv
     ) public virtual onlyOwner { vault.deepenLiquidity(_eth, _weth, _nftxInv); }
     function stakeLiquidity() public virtual onlyOwner { vault.stakeLiquidity(); }
-    function claimRewards() public virtual onlyOwner { vault.claimRewards(); }
+    function claimRewards(address _recipient) public virtual onlyOwner { vault.claimRewards(_recipient); }
+    function compoundRewards(uint112 _eth, uint112 _weth) public virtual onlyOwner { vault.compoundRewards(_eth, _weth); }
     function rescueERC20(address _token, address _to) public virtual onlyOwner { vault.rescueERC20(_token, _to); }
     function rescueERC721(
         address _address,
