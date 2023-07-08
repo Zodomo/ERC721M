@@ -229,7 +229,6 @@ abstract contract AssetManager is ERC721TokenReceiver {
     }
 
     // Stake NFTWETH SLP in NFTX
-    // It is not necessary to stake NFTX vault tokens as we are only interested in deepening liquidity
     function _stakeLiquidity() internal returns (uint256 liquidity) {
         // Check available SLP balance
         liquidity = _checkBalance(address(_nftxLiquidity));
@@ -241,8 +240,12 @@ abstract contract AssetManager is ERC721TokenReceiver {
 
     // Claim NFTWETH SLP rewards
     function _claimRewards() internal {
+        // Retrieve balance to diff against
+        uint256 invTokenBal = _nftxInventory.balanceOf(address(this));
         // Claim SLP rewards
         _NFTX_LIQUIDITY_STAKING.claimRewards(_vaultId);
+        // Determine reward amount
+        uint256 reward = _nftxInventory.balanceOf(address(this)) - invTokenBal;
     }
 
     // Rescue ETH/ERC20 (use address(0) for ETH)
