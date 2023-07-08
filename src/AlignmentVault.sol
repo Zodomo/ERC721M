@@ -72,12 +72,6 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     IERC20 internal immutable _nftxLiquidity; // NFTX NFTWETH token
     uint256 internal immutable _vaultId;
 
-    // Check balance of any token, use zero address for native ETH
-    function _checkBalance(address _token) internal view returns (uint256) {
-        if (_token == address(0)) { return (address(this).balance); }
-        else { return (IERC20(_token).balanceOf(address(this))); }
-    }
-
     // Sort token addresses for LP address derivation
     function _sortTokens(address _tokenA, address _tokenB) internal pure returns (address token0, address token1) {
         if (_tokenA == _tokenB) { revert IdenticalAddresses(); }
@@ -158,7 +152,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         // Retrieve SLP reserves to calculate price of NFT token in WETH
         (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(_nftxLiquidity)).getReserves();
         // Retrieve WETH balance
-        uint256 wethBal = _checkBalance(address(_WETH));
+        uint256 wethBal = IERC20(address(_WETH)).balanceOf(address(this));
         // Calculate value of NFT in WETH using SLP reserves values
         uint256 ethPerNFT;
         // Reverse reserve values if token1 isn't WETH
@@ -171,7 +165,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         // Check if contract has enough WETH on hand
         if (wethBal < totalRequiredWETH) {
             // If not, check to see if WETH + ETH balance is enough
-            if ((wethBal + _checkBalance(address(0))) < totalRequiredWETH) {
+            if ((wethBal + address(this).balance) < totalRequiredWETH) {
                 // If there just isn't enough ETH, revert
                 revert InsufficientBalance();
             } else {
@@ -191,9 +185,9 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         uint112 _nftxInv
     ) public onlyOwner returns (uint256) {
         // Verify balance of all inputs
-        if (_checkBalance(address(0)) < _eth ||
-            _checkBalance(address(_WETH)) < _weth ||
-            _checkBalance(address(_nftxInventory)) < _nftxInv
+        if (address(this).balance < _eth ||
+            IERC20(address(_WETH)).balanceOf(address(this)) < _weth ||
+            _nftxInventory.balanceOf(address(this)) < _nftxInv
         ) { revert InsufficientBalance(); }
         // Wrap any ETH into WETH
         if (_eth > 0) {
@@ -216,11 +210,9 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     // Stake NFTWETH SLP in NFTX
     function stakeLiquidity() public onlyOwner returns (uint256 liquidity) {
         // Check available SLP balance
-        liquidity = _checkBalance(address(_nftxLiquidity));
+        liquidity = _nftxLiquidity.balanceOf(address(this));
         // Stake entire balance
         _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
-        // Return amount staked
-        liquidity -= _checkBalance(address(_nftxLiquidity));
     }
 
     // Claim NFTWETH SLP rewards
@@ -253,18 +245,18 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     function rescueERC20(address _token, address _to) public onlyOwner returns (uint256) {
         // If address(0), rescue ETH from liq helper to vault
         if (_token == address(0)) {
-            uint256 balance = _checkBalance(_token);
+            uint256 balance = IERC20(_token).balanceOf(address(this));
             _liqHelper.emergencyWithdrawEther();
-            uint256 balanceDiff = _checkBalance(_token) - balance;
+            uint256 balanceDiff = IERC20(_token).balanceOf(address(this)) - balance;
             return (balanceDiff);
         }
         // If _nftxInventory or _nftxLiquidity, rescue from liq helper to vault
         else if (_token == address(_WETH) || 
             _token == address(_nftxInventory) ||
             _token == address(_nftxLiquidity)) {
-                uint256 balance = _checkBalance(_token);
+                uint256 balance = IERC20(_token).balanceOf(address(this));
                 _liqHelper.emergencyWithdrawErc20(_token);
-                uint256 balanceDiff = _checkBalance(_token) - balance;
+                uint256 balanceDiff = IERC20(_token).balanceOf(address(this)) - balance;
                 return (balanceDiff);
         }
         // If any other token, rescue from liq helper and/or vault and send to recipient
@@ -274,7 +266,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
                 _liqHelper.emergencyWithdrawErc20(_token);
             }
             // Check updated balance
-            uint256 balance = _checkBalance(_token);
+            uint256 balance = IERC20(_token).balanceOf(address(this));
             // Send entire balance to recipient
             IERC20(_token).transfer(_to, balance);
             return (balance);

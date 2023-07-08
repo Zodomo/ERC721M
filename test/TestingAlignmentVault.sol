@@ -24,7 +24,6 @@ contract TestingAlignmentVault is AlignmentVault {
     function view_nftxLiquidity() public view returns (address) { return (address(_nftxLiquidity)); }
     function view_vaultId() public view returns (uint256) { return (_vaultId); }
 
-    function call_checkBalance(address _token) public view returns (uint256) {return (_checkBalance(_token)); }
     function call_sortTokens(address _tokenA, address _tokenB) public pure returns (address, address) {
         (address token0, address token1) = _sortTokens(_tokenA, _tokenB);
         return (token0, token1);

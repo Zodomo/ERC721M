@@ -73,16 +73,6 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     function test_vaultId() public view {
         require(alignmentVault.view_vaultId() == 392); // NFTX Milady Vault ID
     }
-    
-    function test_checkBalance_ETH() public {
-        (bool success, ) = payable(address(alignmentVault)).call{ value: 1 ether }("");
-        require(success);
-        require(alignmentVault.call_checkBalance(address(0)) == 1 ether);
-    }
-    function test_checkBalance_ERC20() public {
-        wethToken.transfer(address(alignmentVault), 1 ether);
-        require(alignmentVault.call_checkBalance(address(weth)) == 1 ether);
-    }
 
     function test_sortTokens(address _tokenA, address _tokenB) public {
         hevm.assume(_tokenA != _tokenB);
