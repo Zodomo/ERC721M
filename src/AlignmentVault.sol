@@ -16,15 +16,12 @@ interface INFTXVault {
 }
 
 interface INFTXInventoryStaking {
-    function receiveRewards(uint256 vaultId, uint256 amount) external returns (bool);
     function deposit(uint256 vaultId, uint256 _amount) external;
     function withdraw(uint256 vaultId, uint256 _share) external;
 }
 
 interface INFTXLPStaking {
-    function receiveRewards(uint256 vaultId, uint256 amount) external returns (bool);
     function deposit(uint256 vaultId, uint256 amount) external;
-    function withdraw(uint256 vaultId, uint256 amount) external;
     function claimRewards(uint256 vaultId) external;
 }
 
@@ -124,6 +121,11 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     // Wrap ETH into WETH
     function wrap(uint256 _eth) public onlyOwner {
         _WETH.deposit{ value: _eth }();
+    }
+
+    // TODO: Execute floor buys
+    function buyNft(bytes calldata _calldata) public onlyOwner {
+
     }
 
     // Add NFTs to NFTX Inventory
