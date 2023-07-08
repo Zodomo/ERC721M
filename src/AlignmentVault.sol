@@ -125,30 +125,19 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
 
     // Wrap ETH into WETH
     function wrap(uint256 _eth) public onlyOwner {
-        if (address(this).balance < _eth) { revert InsufficientBalance(); }
         _WETH.deposit{ value: _eth }();
     }
 
-    // Add NFTs to NFTX Inventory in exchange for vault tokens
+    // Add NFTs to NFTX Inventory
+    // NOTE: This action imposes a timelock at NFTX
     function addInventory(uint256[] calldata _tokenIds) public onlyOwner {
-        // Check balance against array length to save gas before loop execution
-        if (_erc721.balanceOf(address(this)) < _tokenIds.length) { revert InsufficientBalance(); }
-        for (uint i; i < _tokenIds.length;) {
-            // Verify ownership of _tokenIds
-            if (_erc721.ownerOf(_tokenIds[i]) != address(this)) { revert IncorrectOwner(); }
-            unchecked { ++i; }
-        }
         _NFTX_STAKING_ZAP.provideInventory721(_vaultId, _tokenIds);
     }
 
     // Add NFTs and WETH to NFTX NFTWETH SLP
     function addLiquidity(uint256[] calldata _tokenIds) public onlyOwner returns (uint256) {
-        // Verify ownership of _tokenIds
-        if (_erc721.balanceOf(address(this)) < _tokenIds.length) { revert InsufficientBalance(); }
-        for (uint i; i < _tokenIds.length;) {
-            if (_erc721.ownerOf(_tokenIds[i]) != address(this)) { revert IncorrectOwner(); }
-            unchecked { ++i; }
-        }
+        // Store _tokenIds.length in memory to save gas
+        uint256 length = _tokenIds.length;
         // Retrieve SLP reserves to calculate price of NFT token in WETH
         (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(_nftxLiquidity)).getReserves();
         // Retrieve WETH balance
@@ -159,9 +148,9 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         if (IUniswapV2Pair(address(_nftxLiquidity)).token1() != address(_WETH)) {
             ethPerNFT = ((10**18 * uint256(reserve0)) / uint256(reserve1));
         } else { ethPerNFT = ((10**18 * uint256(reserve1)) / uint256(reserve0)); }
-        uint256 totalRequiredWETH = ethPerNFT * _tokenIds.length;
+        uint256 totalRequiredWETH = ethPerNFT * length;
         // NOTE: Add 1 wei per token if _tokenIds > 1 to resolve Uniswap V2 liquidity issues
-        if (_tokenIds.length > 1) { totalRequiredWETH += (_tokenIds.length * 1); }
+        if (length > 1) { totalRequiredWETH += (length * 1); }
         // Check if contract has enough WETH on hand
         if (wethBal < totalRequiredWETH) {
             // If not, check to see if WETH + ETH balance is enough
@@ -245,9 +234,9 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     function rescueERC20(address _token, address _to) public onlyOwner returns (uint256) {
         // If address(0), rescue ETH from liq helper to vault
         if (_token == address(0)) {
-            uint256 balance = IERC20(_token).balanceOf(address(this));
+            uint256 balance = address(this).balance;
             _liqHelper.emergencyWithdrawEther();
-            uint256 balanceDiff = IERC20(_token).balanceOf(address(this)) - balance;
+            uint256 balanceDiff = address(this).balance - balance;
             return (balanceDiff);
         }
         // If _nftxInventory or _nftxLiquidity, rescue from liq helper to vault

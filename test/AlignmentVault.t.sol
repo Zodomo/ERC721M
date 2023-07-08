@@ -117,7 +117,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(wethToken.balanceOf(address(alignmentVault)) == _amount);
     }
     function test_wrap_InsufficientBalance() public {
-        hevm.expectRevert(AlignmentVault.InsufficientBalance.selector);
+        hevm.expectRevert(bytes(""));
         alignmentVault.execute_wrap(1 ether);
     }
     
@@ -141,22 +141,6 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
             hevm.stopPrank();
         }
         alignmentVault.execute_addInventory(tokenIds);
-    }
-    function test_addInventoryBatch_InsufficientBalance() public {
-        uint[] memory tokenIds = new uint256[](2);
-        for (uint256 i; i < 2; i++) { tokenIds[i] = i + 1; }
-        hevm.expectRevert(AlignmentVault.InsufficientBalance.selector);
-        alignmentVault.execute_addInventory(tokenIds);
-    }
-    function test_addInventoryBatch_IncorrectOwner() public {
-        uint[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = 42;
-        hevm.startPrank(nft.ownerOf(69));
-        nft.approve(address(this), 69);
-        nft.transferFrom(nft.ownerOf(69), address(alignmentVault), 69);
-        hevm.expectRevert(Unauthorized.selector);
-        alignmentVault.execute_addInventory(tokenIds);
-        hevm.stopPrank();
     }
 
     function test_addLiquidity() public {
@@ -216,24 +200,6 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         weth.deposit{ value: ethAmount }();
         IERC20(address(weth)).transfer(address(alignmentVault), ethAmount);
         alignmentVault.execute_addLiquidity(tokenIds);
-    }
-    function test_addLiquidity_InsufficientBalance_NFTs() public {
-        uint256[] memory tokenIds = new uint256[](2);
-        tokenIds[0] = 42;
-        tokenIds[1] = 69;
-        hevm.expectRevert(AlignmentVault.InsufficientBalance.selector);
-        alignmentVault.execute_addLiquidity(tokenIds);
-    }
-    function test_addLiquidity_IncorrectOwner() public {
-        hevm.assume(nft.ownerOf(42) > address(0));
-        hevm.startPrank(nft.ownerOf(42));
-        nft.approve(address(this), 42);
-        nft.transferFrom(nft.ownerOf(42), address(alignmentVault), 42);
-        hevm.stopPrank();
-        uint256[] memory tokenId = new uint256[](1);
-        tokenId[0] = 69;
-        hevm.expectRevert(AlignmentVault.IncorrectOwner.selector);
-        alignmentVault.execute_addLiquidity(tokenId);
     }
     function test_addLiquidity_InsufficientBalance_Ether() public {
         hevm.assume(nft.ownerOf(42) > address(0));
