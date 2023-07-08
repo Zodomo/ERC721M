@@ -31,6 +31,12 @@ contract TestingAlignmentVault is AlignmentVault {
     function call_pairFor(address _tokenA, address _tokenB) public pure returns (address) {
         return (_pairFor(_tokenA, _tokenB));
     }
+    function call_estimateFloor() public view returns (uint256) { return _estimateFloor(); }
+    function call_parseCalldata(bytes calldata data) internal pure returns (
+        SeaportStructs.AdvancedOrder memory order,
+        SeaportStructs.ETHListingParams memory params,
+        SeaportStructs.Fee[] memory fees
+    ) { return parseCalldata(data); }
     
     function execute_wrap(uint256 _eth) public { wrap(_eth); }
     function execute_addInventory(uint256[] calldata _tokenIds) public { addInventory(_tokenIds); }

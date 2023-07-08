@@ -178,7 +178,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     }
 
     // TODO: Parse NFT order calldata to retrieve NFT collection address and order price
-    function _parseCalldata(bytes calldata data) internal pure returns (
+    function parseCalldata(bytes calldata data) public pure returns (
         SeaportStructs.AdvancedOrder memory order,
         SeaportStructs.ETHListingParams memory params,
         SeaportStructs.Fee[] memory fees
@@ -300,7 +300,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         SeaportStructs.AdvancedOrder memory order;
         SeaportStructs.ETHListingParams memory params;
         SeaportStructs.Fee[] memory fees;
-        (order, params, fees) = _parseCalldata(data);
+        (order, params, fees) = parseCalldata(data);
         // Step 2: Verify order is for aligned NFT collection, revert if not
         for (uint256 i; i < order.parameters.offer.length;) {
             if (order.parameters.offer[i].token != address(_erc721)) { revert AlignedAsset(); }
@@ -313,6 +313,30 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         // TODO: Determine params.amount is for all tokens being purchased or not, initially assuming it is for all
         if ((params.amount / order.parameters.offer.length) > upperBound) { revert PriceTooHigh(); }
         // Step 5: Process order as long as all token purchases are within 10% of floor to prevent abuse
+        (bool success, ) = _SEAPORTV15MODULE.call{ value: params.amount }(data);
+        if (!success) { revert SeaportPurchaseFailed(); }
+    }
+    // Overload using the SeaportStructs directly to avoid paying for parsing
+    function buyNft(
+        SeaportStructs.AdvancedOrder calldata order,
+        SeaportStructs.ETHListingParams calldata params,
+        SeaportStructs.Fee[] calldata fees
+    ) public onlyOwner {
+        // Step 1: Verify order is for aligned NFT collection, revert if not
+        for (uint256 i; i < order.parameters.offer.length;) {
+            if (order.parameters.offer[i].token != address(_erc721)) { revert AlignedAsset(); }
+            unchecked { ++i; }
+        }
+        // Step 2: Retrieve floor price with _estimateFloor and calculate upper bound
+        uint256 floorEstimate = _estimateFloor();
+        uint256 upperBound = FixedPointMathLib.fullMulDiv(floorEstimate, 11000, 10000);
+        // Step 3: Verify order payment for each NFT isn't more than 10% over floor, revert if not
+        // TODO: Determine params.amount is for all tokens being purchased or not, initially assuming it is for all
+        if ((params.amount / order.parameters.offer.length) > upperBound) { revert PriceTooHigh(); }
+        // Step 4: Process order as long as all token purchases are within 10% of floor to prevent abuse
+        string memory FUNC_SELECTOR = 
+            "acceptETHListing(((address,address,(uint8,address,uint256,uint256,uint256)[],(uint8,address,uint256,uint256,uint256,address)[],uint8,uint256,uint256,bytes32,uint256,bytes32,uint256),uint120,uint120,bytes,bytes),(address,address,bool,uint256),(address,uint256)[])";
+        bytes memory data = abi.encodeWithSignature(FUNC_SELECTOR, order, params, fees);
         (bool success, ) = _SEAPORTV15MODULE.call{ value: params.amount }(data);
         if (!success) { revert SeaportPurchaseFailed(); }
     }
