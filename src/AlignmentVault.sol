@@ -173,9 +173,83 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         return (spotPrice);
     }
 
-    // Parse NFT order calldata to retrieve NFT collection address and order price
-    function _parseCalldata(bytes calldata _calldata) internal pure returns (address, uint256) {
+    // TODO: Parse NFT order calldata to retrieve NFT collection address and order price
+    function _parseCalldata(bytes calldata data) internal pure returns (
+        SeaportStructs.AdvancedOrder memory order,
+        SeaportStructs.ETHListingParams memory params,
+        SeaportStructs.Fee[] memory fees
+    ) {
+        // Track offset as calldata is parsed, also skip function selector
+        uint256 offset = 4;
 
+        // Decode AdvancedOrder struct, starting with OrderParameters internal struct
+        order.parameters.offerer = abi.decode(data, (address));
+        order.parameters.zone = abi.decode(data[32:], (address));
+        offset = 64;
+
+        // Decode offer array in OrderParameters struct
+        uint256 offerItemsLength = abi.decode(data[offset:], (uint256));
+        order.parameters.offer = new SeaportStructs.OfferItem[](offerItemsLength);
+        offset += 32;
+
+        for (uint256 i = 0; i < offerItemsLength; i++) {
+            order.parameters.offer[i].itemType = SeaportStructs.ItemType(uint8(abi.decode(data[offset:], (uint256))));
+            order.parameters.offer[i].token = abi.decode(data[offset + 32:], (address));
+            order.parameters.offer[i].identifierOrCriteria = abi.decode(data[offset + 64:], (uint256));
+            order.parameters.offer[i].startAmount = abi.decode(data[offset + 96:], (uint256));
+            order.parameters.offer[i].endAmount = abi.decode(data[offset + 128:], (uint256));
+            offset += 160;
+        }
+
+        // Decode consideration array in OrderParameters struct
+        uint256 considerationItemsLength = abi.decode(data[offset:], (uint256));
+        order.parameters.consideration = new SeaportStructs.ConsiderationItem[](considerationItemsLength);
+        offset += 32;
+
+        for (uint256 i = 0; i < considerationItemsLength; i++) {
+            order.parameters.consideration[i].itemType = SeaportStructs.ItemType(uint8(abi.decode(data[offset:], (uint256))));
+            order.parameters.consideration[i].token = abi.decode(data[offset + 32:], (address));
+            order.parameters.consideration[i].identifierOrCriteria = abi.decode(data[offset + 64:], (uint256));
+            order.parameters.consideration[i].startAmount = abi.decode(data[offset + 96:], (uint256));
+            order.parameters.consideration[i].endAmount = abi.decode(data[offset + 128:], (uint256));
+            order.parameters.consideration[i].recipient = abi.decode(data[offset + 160:], (address));
+            offset += 192;
+        }
+
+        order.parameters.orderType = SeaportStructs.OrderType(uint8(abi.decode(data[offset:], (uint256))));
+        order.parameters.startTime = abi.decode(data[offset + 32:], (uint256));
+        order.parameters.endTime = abi.decode(data[offset + 64:], (uint256));
+        order.parameters.zoneHash = abi.decode(data[offset + 96:], (bytes32));
+        order.parameters.salt = abi.decode(data[offset + 128:], (uint256));
+        order.parameters.conduitKey = abi.decode(data[offset + 160:], (bytes32));
+        order.parameters.totalOriginalConsiderationItems = abi.decode(data[offset + 192:], (uint256));
+        offset += 224;
+
+        order.numerator = uint120(abi.decode(data[offset:], (uint256)));
+        order.denominator = uint120(abi.decode(data[offset + 32:], (uint256)));
+        order.signature = abi.decode(data[offset + 64:], (bytes));
+        order.extraData = abi.decode(data[offset + 96:], (bytes));
+
+        offset += 128;
+
+        // Decode ETHListingParams struct
+        params.fillTo = abi.decode(data[offset:], (address));
+        params.refundTo = abi.decode(data[offset + 32:], (address));
+        params.revertIfIncomplete = abi.decode(data[offset + 64:], (bool));
+        params.amount = abi.decode(data[offset + 96:], (uint256));
+
+        offset += 128;
+
+        // Decode Fees struct array
+        uint256 feesArrayLength = abi.decode(data[offset:], (uint256));
+        offset += 32;
+
+        fees = new SeaportStructs.Fee[](feesArrayLength);
+        for (uint256 i = 0; i < feesArrayLength; i++) {
+            fees[i].recipient = abi.decode(data[offset:], (address));
+            fees[i].amount = abi.decode(data[offset + 32:], (uint256));
+            offset += 64;
+        }
     }
 
     constructor(address _nft) payable {
@@ -217,8 +291,12 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     }
 
     // TODO: Execute floor buys
-    function buyNft(bytes calldata _calldata) public onlyOwner {
+    function buyNft(bytes calldata data) public onlyOwner {
         // Step 1: Parse calldata into structs to retrieve order info
+        SeaportStructs.AdvancedOrder memory order;
+        SeaportStructs.ETHListingParams memory params;
+        SeaportStructs.Fee[] memory fees;
+        (order, params, fees) = _parseCalldata(data);
         // Step 2: Verify order is for aligned NFT collection, revert if not
         // Step 3: Retrieve floor price with _estimateFloor
         uint256 floorEstimate = _estimateFloor();
