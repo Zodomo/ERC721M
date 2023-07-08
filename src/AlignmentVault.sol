@@ -16,41 +16,14 @@ interface INFTXVault {
 }
 
 interface INFTXInventoryStaking {
-    function vaultXToken(uint256 vaultId) external view returns (address);
-    function xTokenAddr(address baseToken) external view returns (address);
-    function xTokenShareValue(uint256 vaultId) external view returns (uint256);
-    function __NFTX_INVENTORY_STAKING_init(address nftxFactory) external;
-    function deployXTokenForVault(uint256 vaultId) external;
     function receiveRewards(uint256 vaultId, uint256 amount) external returns (bool);
-    function timelockMintFor(uint256 vaultId, uint256 amount, address to, uint256 timelockLength) external returns (uint256);
     function deposit(uint256 vaultId, uint256 _amount) external;
     function withdraw(uint256 vaultId, uint256 _share) external;
 }
 
 interface INFTXLPStaking {
-    function nftxVaultFactory() external view returns (address);
-    function rewardDistTokenImpl() external view returns (address);
-    function stakingTokenProvider() external view returns (address);
-    function vaultToken(address _stakingToken) external view returns (address);
-    function stakingToken(address _vaultToken) external view returns (address);
-    function rewardDistributionToken(uint256 vaultId) external view returns (address);
-    function newRewardDistributionToken(uint256 vaultId) external view returns (address);
-    function oldRewardDistributionToken(uint256 vaultId) external view returns (address);
-    function unusedRewardDistributionToken(uint256 vaultId) external view returns (address);
-    function rewardDistributionTokenAddr(address stakedToken, address rewardToken) external view returns (address);
-    
-    // Write functions.
-    function __NFTX_LIQUIDITY_STAKING__init(address _stakingTokenProvider) external;
-    function setNFTXVaultFactory(address newFactory) external;
-    function setStakingTokenProvider(address newProvider) external;
-    function addPoolForVault(uint256 vaultId) external;
-    function updatePoolForVault(uint256 vaultId) external;
-    function updatePoolForVaults(uint256[] calldata vaultId) external;
     function receiveRewards(uint256 vaultId, uint256 amount) external returns (bool);
     function deposit(uint256 vaultId, uint256 amount) external;
-    function timelockDepositFor(uint256 vaultId, address account, uint256 amount, uint256 timelockLength) external;
-    function exit(uint256 vaultId, uint256 amount) external;
-    function rescue(uint256 vaultId) external;
     function withdraw(uint256 vaultId, uint256 amount) external;
     function claimRewards(uint256 vaultId) external;
 }
