@@ -85,6 +85,20 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         )))));
     }
 
+    // Use NFTX SLP for aligned NFT as floor price oracle and for determining WETH required for adding liquidity
+    // Using NFTX as a price oracle is intentional, as Chainlink/others weren't sufficient or too expensive
+    function _estimateFloor() internal view returns (uint256) {
+        // Retrieve SLP reserves to calculate price of NFT token in WETH
+        (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(_nftxLiquidity)).getReserves();
+        // Calculate value of NFT spot in WETH using SLP reserves values
+        uint256 spotPrice;
+        // Reverse reserve values if token1 isn't WETH
+        if (IUniswapV2Pair(address(_nftxLiquidity)).token1() != address(_WETH)) {
+            spotPrice = ((10**18 * uint256(reserve0)) / uint256(reserve1));
+        } else { spotPrice = ((10**18 * uint256(reserve1)) / uint256(reserve0)); }
+        return (spotPrice);
+    }
+
     constructor(address _nft) payable {
         // Initialize contract ownership
         _initializeOwner(msg.sender);
@@ -125,7 +139,11 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
 
     // TODO: Execute floor buys
     function buyNft(bytes calldata _calldata) public onlyOwner {
-
+        // Step 1: Parse calldata into structs to retrieve order info
+        // Step 2: Verify order is for aligned NFT collection, revert if not
+        // Step 3: Retrieve floor price with _estimateFloor
+        uint256 floorEstimate = _estimateFloor();
+        // Step 4: Process order as long as all token purchases are within 10% of floor to prevent abuse
     }
 
     // Add NFTs to NFTX Inventory
@@ -138,16 +156,11 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     function addLiquidity(uint256[] calldata _tokenIds) public onlyOwner returns (uint256) {
         // Store _tokenIds.length in memory to save gas
         uint256 length = _tokenIds.length;
-        // Retrieve SLP reserves to calculate price of NFT token in WETH
-        (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(_nftxLiquidity)).getReserves();
         // Retrieve WETH balance
         uint256 wethBal = IERC20(address(_WETH)).balanceOf(address(this));
         // Calculate value of NFT in WETH using SLP reserves values
-        uint256 ethPerNFT;
-        // Reverse reserve values if token1 isn't WETH
-        if (IUniswapV2Pair(address(_nftxLiquidity)).token1() != address(_WETH)) {
-            ethPerNFT = ((10**18 * uint256(reserve0)) / uint256(reserve1));
-        } else { ethPerNFT = ((10**18 * uint256(reserve1)) / uint256(reserve0)); }
+        uint256 ethPerNFT = _estimateFloor();
+        // Determine total amount of WETH required using _tokenIds length
         uint256 totalRequiredWETH = ethPerNFT * length;
         // NOTE: Add 1 wei per token if _tokenIds > 1 to resolve Uniswap V2 liquidity issues
         if (length > 1) { totalRequiredWETH += (length * 1); }
