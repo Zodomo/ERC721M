@@ -14,6 +14,7 @@ abstract contract AlignedNFT is ERC721 {
     error Overdraft();
     error ZeroAddress();
     error ZeroQuantity();
+    error BadInput();
 
     event VaultDeployed(address indexed vault);
     event AllocationSet(uint256 indexed allocation);
@@ -21,19 +22,20 @@ abstract contract AlignedNFT is ERC721 {
     AlignmentVault public immutable vault; // Smart contract wallet for tithe funds
     address public immutable alignedNft; // Aligned NFT collection
     address public pushRecipient; // Recipient of pushed mint funds
-    uint256 public immutable allocation; // 0 - 500, 150 = 15.0%
-    uint256 public totalAllocated; // Total amount of ETH allocated
-    uint256 public totalTithed; // Total amount of ETH sent to vault
-    uint256 public count; // Current number of tokens minted
+    uint256 public totalAllocated; // Total amount of ETH sent to devs
+    uint256 public totalTithed; // Total amount of ETH sent to vault 
+    uint32 public count; // Current number of tokens minted
+    uint16 public immutable allocation; // 500 - 10000, 1500 = 15.00%
     bool public pushStatus; // Push sends funds to allocation recipient each mint
 
     constructor(
-        uint256 _allocation,
         address _nft,
         address _pushRecipient,
+        uint16 _allocation,
         bool _pushStatus
     ) payable {
-        if (_allocation > 500) { revert NotAligned(); } // Require allocation be 50% or less
+        if (_allocation < 500) { revert NotAligned(); } // Require allocation be >= 5%
+        if (_allocation > 10000) { revert BadInput(); } // Require allocation be <= 100%
         allocation = _allocation; // Store it in contract
         emit AllocationSet(_allocation);
         alignedNft = _nft; // Store aligned NFT collection address in contract
@@ -44,7 +46,7 @@ abstract contract AlignedNFT is ERC721 {
         pushStatus = _pushStatus;
     }
 
-    // View AlignmentVault address
+    // View AlignmentVault balance
     function vaultBalance() public view returns (uint256) {
         return (address(vault).balance);
     }
@@ -65,7 +67,7 @@ abstract contract AlignedNFT is ERC721 {
         // Prevent minting zero NFTs
         if (_amount == 0) { revert ZeroQuantity(); }
         // Calculate allocation
-        uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 1000);
+        uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 10000);
         // Calculate tithe (remainder)
         uint256 tithe = msg.value - mintAlloc;
 
@@ -79,6 +81,8 @@ abstract contract AlignedNFT is ERC721 {
 
         // Send tithe to AlignmentVault
         (bool titheSuccess, ) = payable(address(vault)).call{ value: tithe }("");
+        // Count tithe
+        totalTithed += tithe;
         if (!titheSuccess) { revert TransferFailed(); }
 
         // Process ERC721 mints

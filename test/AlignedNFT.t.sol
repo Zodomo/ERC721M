@@ -16,16 +16,16 @@ contract AlignedNFTTest is DSTestPlus {
     function setUp() public {
         // Low alignment / high dev cut
         alignedNFT_LA = new TestingAlignedNFT(
-            420, // 42.0% cut
             0x5Af0D9827E0c53E4799BB226655A1de152A425a5, // Milady NFT
             address(42), // Mint funds recipient when in push mode
+            4200, // 42.00% cut
             true // Push mode enabled
         );
         // High alignment / low dev cut
         alignedNFT_HA = new TestingAlignedNFT(
-            150, // 15.0% cut
             0x5Af0D9827E0c53E4799BB226655A1de152A425a5, // Milady NFT
             address(42), // Mint funds recipient when in push mode
+            1500, // 15.00% cut
             false // Push mode not enabled
         );
         hevm.deal(address(this), 100 ether);
@@ -58,7 +58,7 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 tithe = (_payment * 850) / 1000;
+        uint256 tithe = (_payment * 8500) / 10000;
         require(alignedNFT_HA.vaultBalance() == tithe);
     }
 
@@ -91,7 +91,7 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 tithe = (_payment * 850) / 1000;
+        uint256 tithe = (_payment * 8500) / 10000;
         require(alignedNFT_HA.vaultBalance() == tithe);
     }
     function test_mint_pushAllocation(uint256 _amount, uint256 _payment) public {
@@ -101,7 +101,7 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_LA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 allocation = FixedPointMathLib.fullMulDivUp(420, _payment, 1000);
+        uint256 allocation = FixedPointMathLib.fullMulDivUp(4200, _payment, 10000);
         require((address(42).balance - dust) == allocation);
     }
     function test_mint_poolAllocation(uint256 _amount, uint256 _payment) public {
@@ -110,7 +110,7 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 allocation = FixedPointMathLib.fullMulDivUp(150, _payment, 1000);
+        uint256 allocation = FixedPointMathLib.fullMulDivUp(1500, _payment, 10000);
         require(address(alignedNFT_HA).balance == allocation);
     }
     function test_mint_TransferFailed_push() public {
@@ -131,7 +131,7 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 allocation = FixedPointMathLib.fullMulDivUp(150, _payment, 1000);
+        uint256 allocation = FixedPointMathLib.fullMulDivUp(1500, _payment, 10000);
         alignedNFT_HA.execute_withdrawAllocation(address(42), type(uint256).max);
         require((address(42).balance - dust) == allocation);
     }

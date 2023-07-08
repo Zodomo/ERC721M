@@ -9,11 +9,11 @@ contract TestingAlignedNFT is AlignedNFT {
     using LibString for uint256;
 
     constructor(
-        uint256 _allocation,
         address _nft,
         address _pushRecipient,
+        uint16 _allocation,
         bool _pushStatus
-    ) AlignedNFT(_allocation, _nft, _pushRecipient, _pushStatus) { }
+    ) AlignedNFT(_nft, _pushRecipient, _allocation, _pushStatus) { }
 
     function name() public pure override returns (string memory) { return ("AlignedNFT Test"); }
     function symbol() public pure override returns (string memory) { return ("ANFTTest"); }

@@ -19,10 +19,10 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
 
     function setUp() public {
         template = new ERC721M(
-            200,
+            2000,
+            false,
             address(nft),
             address(42),
-            false,
             "ERC721M Test",
             "ERC721M",
             "https://miya.wtf/api/",
@@ -53,7 +53,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     function testTokenURI() public {
         template.openMint();
         template.mint{ value: 0.01 ether }(address(this), 1);
-        require(keccak256(abi.encodePacked(template.tokenURI(1))) == keccak256(abi.encodePacked(string.concat("https://miya.wtf/api/", template.count().toString()))));
+        require(keccak256(abi.encodePacked(template.tokenURI(1))) == keccak256(abi.encodePacked(string.concat("https://miya.wtf/api/", uint256(template.count()).toString()))));
     }
     function testTokenURI_NotMinted() public {
         hevm.expectRevert(ERC721M.NotMinted.selector);

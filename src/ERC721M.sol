@@ -37,10 +37,10 @@ contract ERC721M is Ownable, AlignedNFT {
     }
 
     constructor(
-        uint256 _allocation,
+        uint16 _allocation,
+        bool _pushStatus,
         address _nft,
         address _pushRecipient,
-        bool _pushStatus,
         string memory __name,
         string memory __symbol,
         string memory __baseURI,
@@ -48,9 +48,9 @@ contract ERC721M is Ownable, AlignedNFT {
         uint256 _totalSupply,
         uint256 _price
     ) AlignedNFT(
-        _allocation,
         _nft,
         _pushRecipient,
+        _allocation,
         _pushStatus
     ) payable {
         _name = __name;

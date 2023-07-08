@@ -49,12 +49,10 @@ abstract contract ERC721TokenReceiver {
 contract AlignmentVault is Ownable, ERC721TokenReceiver {
 
     error InsufficientBalance();
-    error IncorrectOwner();
     error IdenticalAddresses();
     error ZeroAddress();
     error ZeroValues();
     error NFTXVaultDoesntExist();
-    error RewardsClaimFailed();
     error AlignedAsset();
 
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
