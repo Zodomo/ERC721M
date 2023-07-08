@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "solady/auth/Ownable.sol";
+import "solady/utils/FixedPointMathLib.sol";
 import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
 import "v2-core/interfaces/IUniswapV2Pair.sol";
@@ -125,8 +126,11 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     error ZeroValues();
     error NFTXVaultDoesntExist();
     error AlignedAsset();
+    error PriceTooHigh();
+    error SeaportPurchaseFailed();
 
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address constant internal _SEAPORTV15MODULE = 0xF645877ab54E5856F39dC90425ae21748F52B5d4;
     address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
     IUniswapV2Router02 constant internal _SUSHI_V2_ROUTER = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
     UniswapV2LiquidityHelper internal _liqHelper;
@@ -298,9 +302,19 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         SeaportStructs.Fee[] memory fees;
         (order, params, fees) = _parseCalldata(data);
         // Step 2: Verify order is for aligned NFT collection, revert if not
-        // Step 3: Retrieve floor price with _estimateFloor
+        for (uint256 i; i < order.parameters.offer.length;) {
+            if (order.parameters.offer[i].token != address(_erc721)) { revert AlignedAsset(); }
+            unchecked { ++i; }
+        }
+        // Step 3: Retrieve floor price with _estimateFloor and calculate upper bound
         uint256 floorEstimate = _estimateFloor();
-        // Step 4: Process order as long as all token purchases are within 10% of floor to prevent abuse
+        uint256 upperBound = FixedPointMathLib.fullMulDiv(floorEstimate, 11000, 10000);
+        // Step 4: Verify order payment for each NFT isn't more than 10% over floor, revert if not
+        // TODO: Determine params.amount is for all tokens being purchased or not, initially assuming it is for all
+        if ((params.amount / order.parameters.offer.length) > upperBound) { revert PriceTooHigh(); }
+        // Step 5: Process order as long as all token purchases are within 10% of floor to prevent abuse
+        (bool success, ) = _SEAPORTV15MODULE.call{ value: params.amount }(data);
+        if (!success) { revert SeaportPurchaseFailed(); }
     }
 
     // Add NFTs to NFTX Inventory
