@@ -109,6 +109,8 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
             0x227c7DF69D3ed1ae7574A1a7685fDEd90292EB48 // NFTX MILADY token
         ) == 0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // MILADYWETH SLP
     }
+
+    
     
     function test_wrap(uint256 _amount) public {
         hevm.assume(_amount < 420 ether);
