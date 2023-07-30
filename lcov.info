@@ -3,8 +3,8 @@ SF:src/AlignedNFT.sol
 FN:46,AlignedNFT.vaultBalance
 FNDA:512,AlignedNFT.vaultBalance
 DA:47,512
-FN:51,AlignedNFT._changePushRecipient
-FNDA:514,AlignedNFT._changePushRecipient
+FN:51,AlignedNFT._changeFundsRecipient
+FNDA:514,AlignedNFT._changeFundsRecipient
 DA:52,514
 BRDA:52,0,0,1
 BRDA:52,0,1,513
@@ -29,8 +29,8 @@ DA:78,1980
 BRDA:78,3,0,-
 BRDA:78,3,1,1980
 DA:81,1980
-FN:85,AlignedNFT._withdrawAllocation
-FNDA:699,AlignedNFT._withdrawAllocation
+FN:85,AlignedNFT._withdrawFunds
+FNDA:699,AlignedNFT._withdrawFunds
 DA:87,699
 BRDA:87,4,0,1
 BRDA:87,4,1,698
@@ -314,8 +314,8 @@ DA:117,1
 FN:118,ERC721M.rescueERC721
 FNDA:1,ERC721M.rescueERC721
 DA:122,1
-FN:123,ERC721M.withdrawAllocation
-FNDA:184,ERC721M.withdrawAllocation
+FN:123,ERC721M.withdrawFunds
+FNDA:184,ERC721M.withdrawFunds
 DA:123,184
 FN:129,ERC721M.
 FNDA:1,ERC721M.
@@ -341,8 +341,8 @@ DA:19,1
 FN:20,TestingAlignedNFT.tokenURI
 FNDA:256,TestingAlignedNFT.tokenURI
 DA:20,256
-FN:22,TestingAlignedNFT.execute_changePushRecipient
-FNDA:258,TestingAlignedNFT.execute_changePushRecipient
+FN:22,TestingAlignedNFT.execute_changeFundsRecipient
+FNDA:258,TestingAlignedNFT.execute_changeFundsRecipient
 DA:22,258
 FN:23,TestingAlignedNFT.execute_setPushStatus
 FNDA:256,TestingAlignedNFT.execute_setPushStatus
@@ -350,8 +350,8 @@ DA:23,256
 FN:25,TestingAlignedNFT.execute_mint
 FNDA:1796,TestingAlignedNFT.execute_mint
 DA:25,1796
-FN:26,TestingAlignedNFT.execute_withdrawAllocation
-FNDA:515,TestingAlignedNFT.execute_withdrawAllocation
+FN:26,TestingAlignedNFT.execute_withdrawFunds
+FNDA:515,TestingAlignedNFT.execute_withdrawFunds
 DA:26,515
 FNF:7
 FNH:7

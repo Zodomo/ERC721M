@@ -60,14 +60,10 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.tokenURI(1);
     }
 
-    function testChangePushRecipient(address _to) public {
+    function testChangeFundsRecipient(address _to) public {
         hevm.assume(_to != address(0));
-        template.changePushRecipient(_to);
-        require(template.pushRecipient() == _to);
-    }
-    function testSetPushStatus(bool _pushStatus) public {
-        template.setPushStatus(_pushStatus);
-        require(template.pushStatus() == _pushStatus);
+        template.changeFundsRecipient(_to);
+        require(template.fundsRecipient() == _to);
     }
     function testSetPrice(uint256 _price) public {
         hevm.assume(_price >= 10 gwei);
@@ -185,11 +181,11 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.rescueERC721(address(testNFT), address(42), 1);
         require(testNFT.ownerOf(1) == address(42));
     }
-    function testWithdrawAllocation() public {
+    function testwithdrawFunds() public {
         template.openMint();
         template.mint{ value: 0.01 ether }(address(42), 1);
         uint256 dust = address(42).balance;
-        template.withdrawAllocation(address(42), 0.002 ether);
+        template.withdrawFunds(address(42), 0.002 ether);
         require((address(42).balance - dust) == 0.002 ether);
     }
 

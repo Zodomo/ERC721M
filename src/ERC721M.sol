@@ -120,7 +120,7 @@ contract ERC721M is Ownable, AlignedNFT {
         address _to,
         uint256 _tokenId
     ) public virtual onlyOwner { vault.rescueERC721(_address, _to, _tokenId); }
-    function withdrawAllocation(address _to, uint256 _amount) public virtual onlyOwner { _withdrawAllocation(_to, _amount); }
+    function withdrawFunds(address _to, uint256 _amount) public virtual onlyOwner { _withdrawFunds(_to, _amount); }
 
     // Internal handling for receive() and fallback() to reduce code length
     function _processPayment() internal {
