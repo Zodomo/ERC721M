@@ -37,21 +37,19 @@ contract ERC721M is Ownable, AlignedNFT {
     }
 
     constructor(
-        uint16 _allocation,
-        bool _pushStatus,
-        address _nft,
-        address _pushRecipient,
-        string memory __name,
-        string memory __symbol,
-        string memory __baseURI,
-        string memory __contractURI,
-        uint256 _totalSupply,
-        uint256 _price
+        uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
+        address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
+        address _fundsRecipient, // Recipient of non-aligned mint funds
+        string memory __name, // NFT collection name
+        string memory __symbol, // NFT collection symbol/ticker
+        string memory __baseURI, // Base URI for NFT metadata, preferably on IPFS
+        string memory __contractURI, // Full Contract URI for NFT collection information
+        uint256 _totalSupply, // Mint quantity
+        uint256 _price // Standard mint price
     ) AlignedNFT(
-        _nft,
-        _pushRecipient,
-        _allocation,
-        _pushStatus
+        _alignedNFT,
+        _fundsRecipient,
+        _allocation
     ) payable {
         _name = __name;
         _symbol = __symbol;
@@ -62,8 +60,8 @@ contract ERC721M is Ownable, AlignedNFT {
         _initializeOwner(msg.sender);
     }
 
-    function name() public view override returns (string memory) { return (_name); }
-    function symbol() public view override returns (string memory) { return (_symbol); }
+    function name() public view virtual override returns (string memory) { return (_name); }
+    function symbol() public view virtual override returns (string memory) { return (_symbol); }
     function baseUri() public view virtual returns (string memory) { return (_baseURI); }
     function contractURI() public view virtual returns (string memory) { return (_contractURI); }
 
@@ -74,8 +72,7 @@ contract ERC721M is Ownable, AlignedNFT {
         return (bytes(__baseURI).length > 0 ? string(abi.encodePacked(__baseURI, _tokenId.toString())) : "");
     }
 
-    function changePushRecipient(address _to) public virtual onlyOwner { _changePushRecipient(_to); }
-    function setPushStatus(bool _pushStatus) public virtual onlyOwner { _setPushStatus(_pushStatus); }
+    function changeFundsRecipient(address _to) public virtual onlyOwner { _changeFundsRecipient(_to); }
     function setPrice(uint256 _price) public virtual onlyOwner {
         price = _price;
         emit PriceUpdated(_price);
@@ -119,12 +116,29 @@ contract ERC721M is Ownable, AlignedNFT {
     ) public virtual onlyOwner { vault.rescueERC721(_address, _to, _tokenId); }
     function withdrawAllocation(address _to, uint256 _amount) public onlyOwner { _withdrawAllocation(_to, _amount); }
 
+    // Attempt to use funds sent directly to contract on mints if open and mintable, else send to vault
     receive() external payable {
-        (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
-        if (!success) { revert TransferFailed(); }
+        if (mintOpen && msg.value >= price) { 
+            try mint(msg.sender, msg.value / price) {}
+            catch {
+                (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
+                if (!success) { revert TransferFailed(); }
+            }
+        } else {
+            (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
+            if (!success) { revert TransferFailed(); }
+        }
     }
     fallback() external payable {
-        (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
-        if (!success) { revert TransferFailed(); }
+        if (mintOpen && msg.value >= price) { 
+            try mint(msg.sender, msg.value / price) {}
+            catch {
+                (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
+                if (!success) { revert TransferFailed(); }
+            }
+        } else {
+            (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
+            if (!success) { revert TransferFailed(); }
+        }
     }
 }

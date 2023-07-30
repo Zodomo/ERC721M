@@ -52,7 +52,7 @@ abstract contract AlignedNFT is ERC721 {
     }
 
     // Change push allocation recipient address
-    function _changePushRecipient(address _to) internal {
+    function _changeFundsRecipient(address _to) internal {
         if (_to == address(0)) { revert ZeroAddress(); }
         pushRecipient = _to;
     }
