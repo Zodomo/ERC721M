@@ -12,10 +12,10 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
 
     using LibString for uint256;
 
-    ERC721M template;
-    IERC721 nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
-    MockERC20 testToken;
-    MockERC721 testNFT;
+    ERC721M public template;
+    IERC721 public nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
+    MockERC20 public testToken;
+    MockERC721 public testNFT;
 
     function setUp() public {
         template = new ERC721M(
@@ -53,7 +53,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         hevm.prank(msg.sender);
         template.openMint();
         template.mint{ value: 0.01 ether }(address(this), 1);
-        require(keccak256(abi.encodePacked(template.tokenURI(1))) == keccak256(abi.encodePacked(string.concat("https://miya.wtf/api/", uint256(template.count()).toString()))));
+        require(keccak256(abi.encodePacked(template.tokenURI(1))) == keccak256(abi.encodePacked(string.concat("https://miya.wtf/api/", uint256(template.totalSupply()).toString()))));
     }
     function testTokenURI_NotMinted() public {
         hevm.expectRevert(ERC721M.NotMinted.selector);

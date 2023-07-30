@@ -24,7 +24,7 @@ abstract contract AlignedNFT is ERC721 {
     address public fundsRecipient; // Recipient of remaining non-aligned mint funds
     uint256 public totalAllocated; // Total amount of ETH sent to devs
     uint256 public totalTithed; // Total amount of ETH sent to vault 
-    uint32 public count; // Current number of tokens minted
+    uint32 public totalSupply; // Current number of tokens minted
     uint16 public immutable allocation; // Percentage of mint funds to align 500 - 10000, 1500 = 15.00%
 
     constructor(
@@ -72,7 +72,7 @@ abstract contract AlignedNFT is ERC721 {
 
         // Process ERC721 mints
         for (uint256 i; i < _amount;) {
-            super._mint(_to, ++count);
+            super._mint(_to, ++totalSupply);
             unchecked { ++i; }
         }
     }

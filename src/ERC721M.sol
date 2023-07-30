@@ -33,15 +33,15 @@ contract ERC721M is Ownable, AlignedNFT {
     string private _symbol;
     string private _baseURI;
     string private _contractURI;
-    uint256 public immutable totalSupply;
+    uint256 public immutable maxSupply;
     uint256 public price;
     // NFT address => [Discount Price, Quantity of Discounted Mints]
     mapping(address => uint256[]) public collectionDiscount; 
 
     modifier mintable(uint256 _amount) {
         if (!mintOpen) { revert MintClosed(); }
-        if (count >= totalSupply) { revert CapReached(); }
-        if (count + _amount > totalSupply) { revert CapExceeded(); }
+        if (totalSupply >= maxSupply) { revert CapReached(); }
+        if (totalSupply + _amount > maxSupply) { revert CapExceeded(); }
         _;
     }
 
@@ -53,7 +53,7 @@ contract ERC721M is Ownable, AlignedNFT {
         string memory __symbol, // NFT collection symbol/ticker
         string memory __baseURI, // Base URI for NFT metadata, preferably on IPFS
         string memory __contractURI, // Full Contract URI for NFT collection information
-        uint256 _totalSupply, // Mint quantity
+        uint256 _maxSupply, // Max mint supply
         uint256 _price // Standard mint price
     ) AlignedNFT(
         _alignedNFT,
@@ -64,7 +64,7 @@ contract ERC721M is Ownable, AlignedNFT {
         _symbol = __symbol;
         _baseURI = __baseURI;
         _contractURI = __contractURI;
-        totalSupply = _totalSupply;
+        maxSupply = _maxSupply;
         price = _price;
 
         // Set ownership using msg.sender or tx.origin to support factory deployment
@@ -124,7 +124,7 @@ contract ERC721M is Ownable, AlignedNFT {
         if (!uriLocked) {
             _baseURI = __baseURI;
             emit URIChanged(__baseURI);
-            emit BatchMetadataUpdate(0, totalSupply);
+            emit BatchMetadataUpdate(0, maxSupply);
         } else { revert URILocked(); }
     }
     function lockURI() public virtual onlyOwner {
