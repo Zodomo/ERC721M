@@ -14,25 +14,34 @@ contract ERC721M is Ownable, AlignedNFT {
     error MintClosed();
     error CapReached();
     error CapExceeded();
+    error DiscountExceeded();
+    error ArrayLengthMismatch();
     error InsufficientPayment();
+    error NoDiscount();
+    error CollectionZeroBalance();
 
     event URIChanged(string indexed baseUri);
     event URILock();
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
     event PriceUpdated(uint256 indexed price);
+    event CollectionDiscount(address indexed collection, uint256 indexed discount, uint256 indexed quantity);
+    event DiscountOverwritten(address indexed collection, uint256 indexed discount, uint256 indexed remainingQty);
 
+    bool public uriLocked;
+    bool public mintOpen;
     string private _name;
     string private _symbol;
     string private _baseURI;
     string private _contractURI;
-    bool public uriLocked;
-    bool public mintOpen;
     uint256 public immutable totalSupply;
     uint256 public price;
+    // NFT address => [Discount Price, Quantity of Discounted Mints]
+    mapping(address => uint256[]) public collectionDiscount; 
 
-    modifier mintable() {
+    modifier mintable(uint256 _amount) {
         if (!mintOpen) { revert MintClosed(); }
         if (count >= totalSupply) { revert CapReached(); }
+        if (count + _amount > totalSupply) { revert CapExceeded(); }
         _;
     }
 
@@ -84,6 +93,31 @@ contract ERC721M is Ownable, AlignedNFT {
         price = _price;
         emit PriceUpdated(_price);
     }
+    // Configure collection ownership-based discounted mints, bulk compatible
+    // Each individual collection must have a corresponding discount price and total discounted mint quantity
+    function configureDiscount(
+        address[] memory _nft,
+        uint256[] memory _price,
+        uint256[] memory _quantity
+    ) public virtual onlyOwner {
+        // Confirm all arrays match in length to ensure each collection has proper values set
+        uint256 length = _nft.length;
+        if (length != _price.length && length != _quantity.length) { revert ArrayLengthMismatch(); }
+        uint256[] memory discount = new uint256[](2);
+        // Loop through and configure each corresponding discount
+        for (uint256 i; i < length;) {
+            // Log if existing discount is being overwritten
+            uint256 remainingQty = collectionDiscount[_nft[i]][1];
+            if (remainingQty > 0) {
+                emit DiscountOverwritten(_nft[i], collectionDiscount[_nft[i]][0], remainingQty);
+            }
+            // Store new discount
+            discount[0] = _price[i];
+            discount[1] = _quantity[i];
+            collectionDiscount[_nft[i]] = discount;
+            emit CollectionDiscount(_nft[i], _price[i], _quantity[i]);
+        }
+    }
     function openMint() public virtual onlyOwner { mintOpen = true; }
 
     function updateBaseURI(string memory __baseURI) public virtual onlyOwner {
@@ -98,9 +132,23 @@ contract ERC721M is Ownable, AlignedNFT {
         emit URILock();
     }
 
-    function mint(address _to, uint256 _amount) public payable mintable {
+    // Standard mint function that supports batch minting
+    function mint(address _to, uint256 _amount) public payable mintable(_amount) {
         if (msg.value < (price * _amount)) { revert InsufficientPayment(); }
-        if (count + _amount > totalSupply) { revert CapExceeded(); }
+        _mint(_to, _amount);
+    }
+    // Discounted mint for owners of specific NFTs
+    function discountedMint(address _nft, address _to, uint256 _amount) public payable mintable(_amount) {
+        // Apply all discount checks
+        if (IERC721(_nft).balanceOf(msg.sender) == 0) { revert CollectionZeroBalance(); }
+        uint256 discountPrice = collectionDiscount[_nft][0];
+        if (discountPrice > 0 && msg.value < (discountPrice * _amount)) { revert InsufficientPayment(); }
+        uint256 discountQuantity = collectionDiscount[_nft][1];
+        if (discountQuantity == 0) { revert NoDiscount(); }
+        if (_amount > discountQuantity) { revert DiscountExceeded(); } // Also prevents underflow
+
+        // Deduct mints from discount allocation
+        unchecked { collectionDiscount[_nft][1] -= _amount; } // Cannot underflow as it is checked for prior
         _mint(_to, _amount);
     }
 
