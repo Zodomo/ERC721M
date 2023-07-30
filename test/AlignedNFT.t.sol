@@ -95,6 +95,7 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_LA.execute_mint{ value: _payment }(address(this), _amount);
+        alignedNFT_LA.execute_withdrawFunds(address(42), type(uint256).max);
         uint256 allocation = FixedPointMathLib.fullMulDivUp(4200, _payment, 10000);
         require((address(42).balance - dust) == allocation);
     }

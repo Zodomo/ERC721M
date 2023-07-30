@@ -61,9 +61,10 @@ contract ERC721M is Ownable, AlignedNFT {
         // Set ownership using msg.sender or tx.origin to support factory deployment
         // Determination is made by checking if msg.sender is a smart contract or not by checking code size
         uint32 size;
-        assembly { size:= extcodesize(msg.sender) }
+        address sender = msg.sender;
+        assembly { size:= extcodesize(sender) }
         if (size > 0) { _initializeOwner(tx.origin); }
-        else { _initializeOwner(msg.sender); }
+        else { _initializeOwner(sender); }
     }
 
     function name() public view virtual override returns (string memory) { return (_name); }
@@ -124,13 +125,8 @@ contract ERC721M is Ownable, AlignedNFT {
 
     // Internal handling for receive() and fallback() to reduce code length
     function _processPayment() internal {
-        if (mintOpen && msg.value >= price) { 
-            try mint(msg.sender, msg.value / price) {}
-            catch {
-                (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
-                if (!success) { revert TransferFailed(); }
-            }
-        } else {
+        if (mintOpen && msg.value >= price) { mint(msg.sender, msg.value / price); }
+        else {
             (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
             if (!success) { revert TransferFailed(); }
         }
