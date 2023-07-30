@@ -116,29 +116,20 @@ contract ERC721M is Ownable, AlignedNFT {
     ) public virtual onlyOwner { vault.rescueERC721(_address, _to, _tokenId); }
     function withdrawAllocation(address _to, uint256 _amount) public onlyOwner { _withdrawAllocation(_to, _amount); }
 
+    // Internal handling for receive() and fallback() to reduce code length
+    function _processPayment() internal {
+        if (mintOpen && msg.value >= price) { 
+            try mint(msg.sender, msg.value / price) {}
+            catch {
+                (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
+                if (!success) { revert TransferFailed(); }
+            }
+        } else {
+            (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
+            if (!success) { revert TransferFailed(); }
+        }
+    }
     // Attempt to use funds sent directly to contract on mints if open and mintable, else send to vault
-    receive() external payable {
-        if (mintOpen && msg.value >= price) { 
-            try mint(msg.sender, msg.value / price) {}
-            catch {
-                (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
-                if (!success) { revert TransferFailed(); }
-            }
-        } else {
-            (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
-            if (!success) { revert TransferFailed(); }
-        }
-    }
-    fallback() external payable {
-        if (mintOpen && msg.value >= price) { 
-            try mint(msg.sender, msg.value / price) {}
-            catch {
-                (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
-                if (!success) { revert TransferFailed(); }
-            }
-        } else {
-            (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
-            if (!success) { revert TransferFailed(); }
-        }
-    }
+    receive() external payable { _processPayment(); }
+    fallback() external payable { _processPayment(); }
 }
