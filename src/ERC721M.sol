@@ -57,7 +57,13 @@ contract ERC721M is Ownable, AlignedNFT {
         _contractURI = __contractURI;
         totalSupply = _totalSupply;
         price = _price;
-        _initializeOwner(msg.sender);
+
+        // Set ownership using msg.sender or tx.origin to support factory deployment
+        // Determination is made by checking if msg.sender is a smart contract or not by checking code size
+        uint32 size;
+        assembly { size:= extcodesize(msg.sender) }
+        if (size > 0) { _initializeOwner(tx.origin); }
+        else { _initializeOwner(msg.sender); }
     }
 
     function name() public view virtual override returns (string memory) { return (_name); }
@@ -114,7 +120,7 @@ contract ERC721M is Ownable, AlignedNFT {
         address _to,
         uint256 _tokenId
     ) public virtual onlyOwner { vault.rescueERC721(_address, _to, _tokenId); }
-    function withdrawAllocation(address _to, uint256 _amount) public onlyOwner { _withdrawAllocation(_to, _amount); }
+    function withdrawAllocation(address _to, uint256 _amount) public virtual onlyOwner { _withdrawAllocation(_to, _amount); }
 
     // Internal handling for receive() and fallback() to reduce code length
     function _processPayment() internal {
