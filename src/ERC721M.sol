@@ -5,7 +5,7 @@ import "solady/auth/Ownable.sol";
 import "solady/utils/LibString.sol";
 import "./AlignedNFT.sol";
 
-contract ERC721M is Ownable, AlignedNFT {
+contract ERC721M is AlignedNFT {
 
     using LibString for uint256;
 
@@ -46,7 +46,8 @@ contract ERC721M is Ownable, AlignedNFT {
     }
 
     constructor(
-        uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
+        uint16 _allocation, // Percentage of mint funds allocated to aligned collection in basis points (500 - 10000)
+        uint16 _royaltyFee, // Percentage of royalty fees in basis points (0 - 10000)
         address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
         address _fundsRecipient, // Recipient of non-aligned mint funds
         string memory __name, // NFT collection name
@@ -60,6 +61,10 @@ contract ERC721M is Ownable, AlignedNFT {
         _fundsRecipient,
         _allocation
     ) payable {
+        // Prevent bad royalty fee
+        if (_royaltyFee > 10000) { revert BadInput(); }
+
+        // Set all relevant metadata and contract configurations
         _name = __name;
         _symbol = __symbol;
         _baseURI = __baseURI;
@@ -70,17 +75,22 @@ contract ERC721M is Ownable, AlignedNFT {
         // Set ownership using msg.sender or tx.origin to support factory deployment
         // Determination is made by checking if msg.sender is a smart contract or not by checking code size
         uint32 size;
-        address sender = msg.sender;
+        address sender;
         assembly { size:= extcodesize(sender) }
-        if (size > 0) { _initializeOwner(tx.origin); }
-        else { _initializeOwner(sender); }
+        if (size > 0) { sender = tx.origin; }
+        else { sender = msg.sender; }
+        _initializeOwner(sender);
+
+        // Configure royalties for contract owner
+        _setDefaultRoyalty(sender, uint96(_royaltyFee));
     }
 
+
+    // ERC721 Metadata
     function name() public view virtual override returns (string memory) { return (_name); }
     function symbol() public view virtual override returns (string memory) { return (_symbol); }
     function baseUri() public view virtual returns (string memory) { return (_baseURI); }
     function contractURI() public view virtual returns (string memory) { return (_contractURI); }
-
     function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         if (!_exists(_tokenId)) { revert NotMinted(); } // Require token exists
         string memory __baseURI = baseUri();
@@ -88,6 +98,7 @@ contract ERC721M is Ownable, AlignedNFT {
         return (bytes(__baseURI).length > 0 ? string(abi.encodePacked(__baseURI, _tokenId.toString())) : "");
     }
 
+    // Contract management
     function changeFundsRecipient(address _to) public virtual onlyOwner { _changeFundsRecipient(_to); }
     function setPrice(uint256 _price) public virtual onlyOwner {
         price = _price;
@@ -119,7 +130,6 @@ contract ERC721M is Ownable, AlignedNFT {
         }
     }
     function openMint() public virtual onlyOwner { mintOpen = true; }
-
     function updateBaseURI(string memory __baseURI) public virtual onlyOwner {
         if (!uriLocked) {
             _baseURI = __baseURI;
@@ -152,6 +162,7 @@ contract ERC721M is Ownable, AlignedNFT {
         _mint(_to, _amount);
     }
 
+    // Vault contract management
     function wrap(uint256 _amount) public virtual onlyOwner { vault.wrap(_amount); }
     function addInventory(uint256[] calldata _tokenIds) public virtual onlyOwner { vault.addInventory(_tokenIds); }
     function addLiquidity(uint256[] calldata _tokenIds) public virtual onlyOwner { vault.addLiquidity(_tokenIds); }

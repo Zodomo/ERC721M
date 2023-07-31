@@ -20,6 +20,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     function setUp() public {
         template = new ERC721M(
             2000,
+            500,
             address(nft),
             address(42),
             "ERC721M Test",

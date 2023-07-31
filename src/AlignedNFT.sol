@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "solady/tokens/ERC721.sol";
 import "solady/utils/FixedPointMathLib.sol";
 import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
+import "./ERC721x.sol";
+import "./ERC2981.sol";
 import "./AlignmentVault.sol";
 
-abstract contract AlignedNFT is ERC721 {
+abstract contract AlignedNFT is ERC721x, ERC2981 {
 
     error NotAligned();
     error TransferFailed();
@@ -42,9 +43,20 @@ abstract contract AlignedNFT is ERC721 {
         fundsRecipient = _fundsRecipient; // Set recipient of allocated funds
     }
 
+    // ERC165 override to include ERC2981
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721x) returns (bool) {
+        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
+    }
+
     // View AlignmentVault balance
     function vaultBalance() public view returns (uint256) {
         return (address(vault).balance);
+    }
+
+    // Reconfigure royalty receiver or reduce (no increase) royalty fee
+    function configureRoyaltyFee(address _receiver, uint96 _royaltyFee) public onlyOwner {
+        if (_defaultRoyaltyInfo.royaltyFraction < _royaltyFee) { revert RoyaltyIncrease(); }
+        _setDefaultRoyalty(_receiver, _royaltyFee);
     }
 
     // Change recipient address for non-aligned mint funds
