@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: VPL
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
 import "solady/tokens/ERC721.sol";
