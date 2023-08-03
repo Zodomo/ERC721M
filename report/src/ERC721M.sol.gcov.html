@@ -110,7 +110,7 @@
 <a name="39"><span class="lineNum">      39 </span>                :            :     constructor(</a>
 <a name="40"><span class="lineNum">      40 </span>                :            :         uint256 _allocation,</a>
 <a name="41"><span class="lineNum">      41 </span>                :            :         address _nft,</a>
-<a name="42"><span class="lineNum">      42 </span>                :            :         address _pushRecipient,</a>
+<a name="42"><span class="lineNum">      42 </span>                :            :         address _fundsRecipient,</a>
 <a name="43"><span class="lineNum">      43 </span>                :            :         bool _pushStatus,</a>
 <a name="44"><span class="lineNum">      44 </span>                :            :         string memory __name,</a>
 <a name="45"><span class="lineNum">      45 </span>                :            :         string memory __symbol,</a>
@@ -121,7 +121,7 @@
 <a name="50"><span class="lineNum">      50 </span>                :            :     ) AlignedNFT(</a>
 <a name="51"><span class="lineNum">      51 </span>                :            :         _allocation,</a>
 <a name="52"><span class="lineNum">      52 </span>                :            :         _nft,</a>
-<a name="53"><span class="lineNum">      53 </span>                :            :         _pushRecipient,</a>
+<a name="53"><span class="lineNum">      53 </span>                :            :         _fundsRecipient,</a>
 <a name="54"><span class="lineNum">      54 </span>                :            :         _pushStatus</a>
 <a name="55"><span class="lineNum">      55 </span>                :            :     ) payable {</a>
 <a name="56"><span class="lineNum">      56 </span>                :            :         _name = __name;</a>
@@ -145,7 +145,7 @@
 <a name="74"><span class="lineNum">      74 </span>                :<span class="lineNoCov">          0 :         return (bytes(__baseURI).length &gt; 0 ? string(abi.encodePacked(__baseURI, _tokenId.toString())) : &quot;&quot;);</span></a>
 <a name="75"><span class="lineNum">      75 </span>                :            :     }</a>
 <a name="76"><span class="lineNum">      76 </span>                :            : </a>
-<a name="77"><span class="lineNum">      77 </span>                :<span class="lineNoCov">          0 :     function changePushRecipient(address _to) public virtual onlyOwner { _changePushRecipient(_to); }</span></a>
+<a name="77"><span class="lineNum">      77 </span>                :<span class="lineNoCov">          0 :     function changePushRecipient(address _to) public virtual onlyOwner { _changeFundsRecipient(_to); }</span></a>
 <a name="78"><span class="lineNum">      78 </span>                :<span class="lineNoCov">          0 :     function setPushStatus(bool _pushStatus) public virtual onlyOwner { _setPushStatus(_pushStatus); }</span></a>
 <a name="79"><span class="lineNum">      79 </span>                :            :     function setPrice(uint256 _price) public virtual onlyOwner {</a>
 <a name="80"><span class="lineNum">      80 </span>                :<span class="lineNoCov">          0 :         price = _price;</span></a>
@@ -188,7 +188,7 @@
 <a name="117"><span class="lineNum">     117 </span>                :            :         address _to,</a>
 <a name="118"><span class="lineNum">     118 </span>                :            :         uint256 _tokenId</a>
 <a name="119"><span class="lineNum">     119 </span>                :<span class="lineNoCov">          0 :     ) public virtual onlyOwner { vault.rescueERC721(_address, _to, _tokenId); }</span></a>
-<a name="120"><span class="lineNum">     120 </span>                :<span class="lineNoCov">          0 :     function withdrawAllocation(address _to, uint256 _amount) public onlyOwner { _withdrawAllocation(_to, _amount); }</span></a>
+<a name="120"><span class="lineNum">     120 </span>                :<span class="lineNoCov">          0 :     function withdrawFunds(address _to, uint256 _amount) public onlyOwner { _withdrawFunds(_to, _amount); }</span></a>
 <a name="121"><span class="lineNum">     121 </span>                :            : </a>
 <a name="122"><span class="lineNum">     122 </span>                :            :     receive() external payable {</a>
 <a name="123"><span class="lineNum">     123 </span>                :            :         (bool success, ) = payable(address(vault)).call{ value: msg.value }(&quot;&quot;);</a>

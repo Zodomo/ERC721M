@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: VPL
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
@@ -17,16 +17,14 @@ contract AlignedNFTTest is DSTestPlus {
         // Low alignment / high dev cut
         alignedNFT_LA = new TestingAlignedNFT(
             0x5Af0D9827E0c53E4799BB226655A1de152A425a5, // Milady NFT
-            address(42), // Mint funds recipient when in push mode
-            4200, // 42.00% cut
-            true // Push mode enabled
+            address(42), // Non-aligned funds recipient
+            4200 // 42.00% cut
         );
         // High alignment / low dev cut
         alignedNFT_HA = new TestingAlignedNFT(
             0x5Af0D9827E0c53E4799BB226655A1de152A425a5, // Milady NFT
-            address(42), // Mint funds recipient when in push mode
-            1500, // 15.00% cut
-            false // Push mode not enabled
+            address(42), // Non-aligned funds recipient
+            1500 // 15.00% cut
         );
         hevm.deal(address(this), 100 ether);
     }
@@ -62,18 +60,14 @@ contract AlignedNFTTest is DSTestPlus {
         require(alignedNFT_HA.vaultBalance() == tithe);
     }
 
-    function test_changePushRecipient(address _to) public {
+    function test_changeFundsRecipient(address _to) public {
         hevm.assume(_to != address(0));
-        alignedNFT_HA.execute_changePushRecipient(_to);
-        require(alignedNFT_HA.pushRecipient() == _to);
+        alignedNFT_HA.execute_changeFundsRecipient(_to);
+        require(alignedNFT_HA.fundsRecipient() == _to);
     }
-    function test_changePushRecipient_ZeroAddress() public {
+    function test_changeFundsRecipient_ZeroAddress() public {
         hevm.expectRevert(AlignedNFT.ZeroAddress.selector);
-        alignedNFT_HA.execute_changePushRecipient(address(0));
-    }
-    function test_setPushStatus(bool _pushStatus) public {
-        alignedNFT_HA.execute_setPushStatus(_pushStatus);
-        require(alignedNFT_HA.pushStatus() == _pushStatus);
+        alignedNFT_HA.execute_changeFundsRecipient(address(0));
     }
 
     function test_mint_ownership(address _to, uint256 _amount) public {
@@ -94,13 +88,14 @@ contract AlignedNFTTest is DSTestPlus {
         uint256 tithe = (_payment * 8500) / 10000;
         require(alignedNFT_HA.vaultBalance() == tithe);
     }
-    function test_mint_pushAllocation(uint256 _amount, uint256 _payment) public {
+    function test_mint_fundsAllocation(uint256 _amount, uint256 _payment) public {
         uint256 dust = address(42).balance;
         hevm.assume(_amount != 0);
         hevm.assume(_amount <= 10000);
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_LA.execute_mint{ value: _payment }(address(this), _amount);
+        alignedNFT_LA.execute_withdrawFunds(address(42), type(uint256).max);
         uint256 allocation = FixedPointMathLib.fullMulDivUp(4200, _payment, 10000);
         require((address(42).balance - dust) == allocation);
     }
@@ -113,18 +108,12 @@ contract AlignedNFTTest is DSTestPlus {
         uint256 allocation = FixedPointMathLib.fullMulDivUp(1500, _payment, 10000);
         require(address(alignedNFT_HA).balance == allocation);
     }
-    function test_mint_TransferFailed_push() public {
-        RevertingReceiver rr = new RevertingReceiver();
-        alignedNFT_LA.execute_changePushRecipient(address(rr));
-        hevm.expectRevert(AlignedNFT.TransferFailed.selector);
-        alignedNFT_LA.execute_mint{ value: 100 gwei }(address(this), 1);
-    }
     function test_mint_ZeroQuantity() public {
         hevm.expectRevert(AlignedNFT.ZeroQuantity.selector);
         alignedNFT_LA.execute_mint{ value: 0.01 ether }(address(this), 0);
     }
 
-    function test_withdrawAllocation_max(uint256 _amount, uint256 _payment) public {
+    function test_withdrawFunds_max(uint256 _amount, uint256 _payment) public {
         uint256 dust = address(42).balance;
         hevm.assume(_amount != 0);
         hevm.assume(_amount <= 10000);
@@ -132,33 +121,33 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
         uint256 allocation = FixedPointMathLib.fullMulDivUp(1500, _payment, 10000);
-        alignedNFT_HA.execute_withdrawAllocation(address(42), type(uint256).max);
+        alignedNFT_HA.execute_withdrawFunds(address(42), type(uint256).max);
         require((address(42).balance - dust) == allocation);
     }
-    function test_withdrawAllocation_exact(uint256 _amount, uint256 _payment) public {
+    function test_withdrawFunds_exact(uint256 _amount, uint256 _payment) public {
         uint256 dust = address(42).balance;
         hevm.assume(_amount != 0);
         hevm.assume(_amount <= 10000);
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        alignedNFT_HA.execute_withdrawAllocation(address(42), 100000);
+        alignedNFT_HA.execute_withdrawFunds(address(42), 100000);
         require((address(42).balance - dust) == 100000);
     }
-    function test_withdrawAllocation_ZeroAddress() public {
+    function test_withdrawFunds_ZeroAddress() public {
         alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 1);
         hevm.expectRevert(AlignedNFT.ZeroAddress.selector);
-        alignedNFT_HA.execute_withdrawAllocation(address(0), 100000);
+        alignedNFT_HA.execute_withdrawFunds(address(0), 100000);
     }
-    function test_withdrawAllocation_Overdraft() public {
+    function test_withdrawFunds_Overdraft() public {
         alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 1);
         hevm.expectRevert(AlignedNFT.Overdraft.selector);
-        alignedNFT_HA.execute_withdrawAllocation(address(42), 101 gwei);
+        alignedNFT_HA.execute_withdrawFunds(address(42), 101 gwei);
     }
-    function test_withdrawAllocation_TransferFailed() public {
+    function test_withdrawFunds_TransferFailed() public {
         RevertingReceiver rr = new RevertingReceiver();
         alignedNFT_HA.execute_mint{ value: 100 gwei }(address(this), 1);
         hevm.expectRevert(AlignedNFT.TransferFailed.selector);
-        alignedNFT_HA.execute_withdrawAllocation(address(rr), 15 gwei);
+        alignedNFT_HA.execute_withdrawFunds(address(rr), 15 gwei);
     }
 }
