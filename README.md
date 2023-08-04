@@ -21,7 +21,7 @@
     <img src="img/IMG_0615.png" alt="Miyamaker Logo" width="125" height="125">
   </a>
 
-<h3 align="center">ERC721M</h3>
+<h3 align="center">MiyaMints / ERC721M</h3>
 
   <p align="center">
     An ERC721 extension that is designed with Network Spirituality in mind.
