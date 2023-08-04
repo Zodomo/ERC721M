@@ -170,18 +170,31 @@ contract ERC721M is AlignedNFT {
             unchecked { ++i; }
         }
     }
-    // Burn NFTs of any specified collections to mint
-    function mintBurn(address _to, address[] memory _nft, uint256[] memory _tokenIds) public virtual payable {
+    // Burn NFTs of any allowed collections to mint
+    // _tokenIds is an array of tokenId arrays, each corresponding to a collection
+    function mintBurn(address _to, address[] memory _nft, uint256[][] memory _tokenIds) public virtual payable {
+        // Require NFT collection and array of tokenId arrays be equal length
+        if (_nft.length != _tokenIds.length) { revert ArrayLengthMismatch(); }
+        // If I recall correctly, declaring this outside of the loop saves gas
+        uint256 nftBal;
+        // Iterate through each collection
         for (uint256 i; i < _nft.length;) {
+            // Confirm collection is burnable
             if (!burnableCollections[_nft[i]]) { revert NotBurnableCollection(); }
-            uint256 nftBal = IERC721(_nft[i]).balanceOf(msg.sender);
-            try IERC721Burn(_nft[i]).burn(_tokenIds[i]) { }
-            catch {
-                try IERC721(_nft[i]).transferFrom(msg.sender, address(0x0), _tokenIds[i]) { }
-                catch { IERC721(_nft[i]).transferFrom(msg.sender, address(0xDEAD), _tokenIds[i]); }
+            // Iterate through all tokenIds for the collection
+            for (uint256 j; j < _tokenIds[i].length;) {
+                // Balance is checked and reduction validated to ensure burn took place
+                nftBal = IERC721(_nft[i]).balanceOf(msg.sender);
+                // Attempt to call a burn function, otherwise attempt to destroy token by sending to zero or dead address
+                try IERC721Burn(_nft[i]).burn(_tokenIds[i][j]) { } catch { }
+                if (nftBal == IERC721(_nft[i]).balanceOf(msg.sender)) {
+                    try IERC721(_nft[i]).transferFrom(msg.sender, address(0x0), _tokenIds[i][j]) { }
+                    catch { IERC721(_nft[i]).transferFrom(msg.sender, address(0xDEAD), _tokenIds[i][j]); }
+                }
+                if (IERC721(_nft[i]).balanceOf(msg.sender) >= nftBal) { revert TokenNotBurned(); }
+                ++burnedTokens[msg.sender];
+                unchecked { ++j; }
             }
-            if (IERC721(_nft[i]).balanceOf(msg.sender) >= nftBal) { revert TokenNotBurned(); }
-            ++burnedTokens[msg.sender];
             unchecked { ++i; }
         }
         uint256 mintAmount = burnedTokens[msg.sender] / burnsToMint;
