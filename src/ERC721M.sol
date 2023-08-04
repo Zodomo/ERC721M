@@ -17,19 +17,20 @@ contract ERC721M is AlignedNFT {
     error URILocked();
     error MintClosed();
     error CapReached();
+    error NoDiscount();
     error CapExceeded();
+    error TokenNotBurned();
     error DiscountExceeded();
+    error MintBurnDisabled();
     error ArrayLengthMismatch();
     error InsufficientPayment();
-    error NoDiscount();
     error CollectionZeroBalance();
     error NotBurnableCollection();
-    error TokenNotBurned();
 
-    event URIChanged(string indexed baseUri);
     event URILock();
-    event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
+    event URIChanged(string indexed baseUri);
     event PriceUpdated(uint256 indexed price);
+    event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
     event CollectionDiscount(address indexed collection, uint256 indexed discount, uint256 indexed quantity);
     event DiscountOverwritten(address indexed collection, uint256 indexed discount, uint256 indexed remainingQty);
 
@@ -130,6 +131,7 @@ contract ERC721M is AlignedNFT {
         if (msg.value < (price * _amount)) { revert InsufficientPayment(); }
         _mint(_to, _amount);
     }
+
     // Discounted mint for owners of specific NFTs
     function mintDiscounted(address _nft, address _to, uint256 _amount) public virtual payable mintable(_amount) {
         // Apply all discount checks
@@ -162,17 +164,25 @@ contract ERC721M is AlignedNFT {
             if (remainingQty > 0) {
                 emit DiscountOverwritten(_nft[i], collectionDiscount[_nft[i]][0], remainingQty);
             }
-            // Store new discount
-            discount[0] = _price[i];
-            discount[1] = _quantity[i];
+            // Store new discount, if _quantity is zero, discount is disabled
+            if (_quantity[i] == 0) {
+                discount[0] = 0;
+                discount[1] = 0;
+            } else {
+                discount[0] = _price[i];
+                discount[1] = _quantity[i];
+            }
             collectionDiscount[_nft[i]] = discount;
             emit CollectionDiscount(_nft[i], _price[i], _quantity[i]);
             unchecked { ++i; }
         }
     }
+
     // Burn NFTs of any allowed collections to mint
     // _tokenIds is an array of tokenId arrays, each corresponding to a collection
     function mintBurn(address _to, address[] memory _nft, uint256[][] memory _tokenIds) public virtual payable {
+        // If burnsToMint is zero, mintBurn is disabled
+        if (burnsToMint == 0) { revert MintBurnDisabled(); }
         // Require NFT collection and array of tokenId arrays be equal length
         if (_nft.length != _tokenIds.length) { revert ArrayLengthMismatch(); }
         // If I recall correctly, declaring this outside of the loop saves gas
@@ -202,12 +212,13 @@ contract ERC721M is AlignedNFT {
         _mint(_to, mintAmount);
     }
     // Configure mint to burn functionality by specifying allowed collections and how many tokens are required
+    // Set _amount to zero to disable mintBurn
     function configureMintBurn(address[] memory _nft, uint256 _amount) public virtual onlyOwner {
         for (uint256 i; i < _nft.length;) {
             burnableCollections[_nft[i]] = true;
             unchecked { ++i; }
         }
-        if (_amount != 0) { burnsToMint = _amount; }
+        burnsToMint = _amount;
     }
     // Remove collections from mint to burn
     function configureMintBurnRemove(address[] memory _nft) public virtual onlyOwner {
