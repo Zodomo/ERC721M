@@ -18,7 +18,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/Zodomo/ERC721M">
-    <img src="img/smiley.png" alt="Remilia Logo" width="125" height="125">
+    <img src="img/IMG_0615.png" alt="Miyamaker Logo" width="125" height="125">
   </a>
 
 <h3 align="center">ERC721M</h3>
