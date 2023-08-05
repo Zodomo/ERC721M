@@ -5,6 +5,10 @@ import "solady/auth/Ownable.sol";
 import "solady/utils/LibString.sol";
 import "./AlignedNFT.sol";
 
+interface IERC721Burn {
+    function burn(uint256 _tokenId) external;
+}
+
 contract ERC721M is AlignedNFT {
 
     using LibString for uint256;
@@ -13,17 +17,23 @@ contract ERC721M is AlignedNFT {
     error URILocked();
     error MintClosed();
     error CapReached();
+    error NoDiscount();
     error CapExceeded();
+    error TokenNotBurned();
     error DiscountExceeded();
+    error MintBurnDisabled();
+    error TokenNotLockable();
     error ArrayLengthMismatch();
     error InsufficientPayment();
-    error NoDiscount();
     error CollectionZeroBalance();
+    error NotEnoughTokensLocked();
+    error NotBurnableCollection();
 
-    event URIChanged(string indexed baseUri);
     event URILock();
-    event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
+    event URIChanged(string indexed baseUri);
     event PriceUpdated(uint256 indexed price);
+    event TokensLocked(address indexed token, uint256 indexed amount);
+    event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
     event CollectionDiscount(address indexed collection, uint256 indexed discount, uint256 indexed quantity);
     event DiscountOverwritten(address indexed collection, uint256 indexed discount, uint256 indexed remainingQty);
 
@@ -35,8 +45,14 @@ contract ERC721M is AlignedNFT {
     string private _contractURI;
     uint256 public immutable maxSupply;
     uint256 public price;
-    // NFT address => [Discount Price, Quantity of Discounted Mints]
-    mapping(address => uint256[]) public collectionDiscount; 
+    uint256 public burnsToMint;
+    mapping(address => uint256[]) public collectionDiscount; // NFT address => [Discount Price, Quantity of Discounted Mints]
+    mapping(address => bool) public burnableCollections; // Collections that are eligible for burn to mint
+    mapping(address => uint256) public burnedTokens; // How many tokens an address has burned
+    mapping(address => uint256) public tokenTimelock; // Timelock period for each token
+    mapping(address => uint256) public tokenLockAmounts; // Amount of tokens required to lock to mint, token is not allowed if zero
+    mapping(address => mapping(address => uint256)) public lockedTokens; // How many tokens of any type have been locked, msg.sender => (token => amount)
+    mapping(address => mapping(address => uint256)) public lockTimestamp; // Timestamp for when specific token lock ends per token, msg.sender => (token => timestamp)
 
     modifier mintable(uint256 _amount) {
         if (!mintOpen) { revert MintClosed(); }
@@ -104,31 +120,6 @@ contract ERC721M is AlignedNFT {
         price = _price;
         emit PriceUpdated(_price);
     }
-    // Configure collection ownership-based discounted mints, bulk compatible
-    // Each individual collection must have a corresponding discount price and total discounted mint quantity
-    function configureDiscount(
-        address[] memory _nft,
-        uint256[] memory _price,
-        uint256[] memory _quantity
-    ) public virtual onlyOwner {
-        // Confirm all arrays match in length to ensure each collection has proper values set
-        uint256 length = _nft.length;
-        if (length != _price.length && length != _quantity.length) { revert ArrayLengthMismatch(); }
-        uint256[] memory discount = new uint256[](2);
-        // Loop through and configure each corresponding discount
-        for (uint256 i; i < length;) {
-            // Log if existing discount is being overwritten
-            uint256 remainingQty = collectionDiscount[_nft[i]][1];
-            if (remainingQty > 0) {
-                emit DiscountOverwritten(_nft[i], collectionDiscount[_nft[i]][0], remainingQty);
-            }
-            // Store new discount
-            discount[0] = _price[i];
-            discount[1] = _quantity[i];
-            collectionDiscount[_nft[i]] = discount;
-            emit CollectionDiscount(_nft[i], _price[i], _quantity[i]);
-        }
-    }
     function openMint() public virtual onlyOwner { mintOpen = true; }
     function updateBaseURI(string memory __baseURI) public virtual onlyOwner {
         if (!uriLocked) {
@@ -147,8 +138,9 @@ contract ERC721M is AlignedNFT {
         if (msg.value < (price * _amount)) { revert InsufficientPayment(); }
         _mint(_to, _amount);
     }
+
     // Discounted mint for owners of specific NFTs
-    function discountedMint(address _nft, address _to, uint256 _amount) public payable mintable(_amount) {
+    function mintDiscounted(address _nft, address _to, uint256 _amount) public payable mintable(_amount) {
         // Apply all discount checks
         if (IERC721(_nft).balanceOf(msg.sender) == 0) { revert CollectionZeroBalance(); }
         uint256 discountPrice = collectionDiscount[_nft][0];
@@ -160,6 +152,137 @@ contract ERC721M is AlignedNFT {
         // Deduct mints from discount allocation
         unchecked { collectionDiscount[_nft][1] -= _amount; } // Cannot underflow as it is checked for prior
         _mint(_to, _amount);
+    }
+    // Configure collection ownership-based discounted mints, bulk compatible
+    // Each individual collection must have a corresponding discount price and total discounted mint quantity
+    function configureMintDiscount(
+        address[] memory _nft,
+        uint256[] memory _price,
+        uint256[] memory _quantity
+    ) public virtual onlyOwner {
+        // Confirm all arrays match in length to ensure each collection has proper values set
+        uint256 length = _nft.length;
+        if (length != _price.length && length != _quantity.length) { revert ArrayLengthMismatch(); }
+        uint256[] memory discount = new uint256[](2);
+        // Loop through and configure each corresponding discount
+        for (uint256 i; i < length;) {
+            // Log if existing discount is being overwritten
+            uint256 remainingQty = collectionDiscount[_nft[i]][1];
+            if (remainingQty > 0) {
+                emit DiscountOverwritten(_nft[i], collectionDiscount[_nft[i]][0], remainingQty);
+            }
+            // Store new discount, if _quantity is zero, discount is disabled
+            if (_quantity[i] == 0) {
+                discount[0] = 0;
+                discount[1] = 0;
+            } else {
+                discount[0] = _price[i];
+                discount[1] = _quantity[i];
+            }
+            collectionDiscount[_nft[i]] = discount;
+            emit CollectionDiscount(_nft[i], _price[i], _quantity[i]);
+            unchecked { ++i; }
+        }
+    }
+
+    // Burn NFTs of any allowed collections to mint
+    // _tokenIds is an array of tokenId arrays, each corresponding to a collection
+    function mintBurn(
+        address _to, 
+        address[] memory _nft, 
+        uint256[][] memory _tokenIds
+    ) public virtual payable {
+        // TODO: Replicate mintable modifier logic
+        // If burnsToMint is zero, mintBurn is disabled
+        if (burnsToMint == 0) { revert MintBurnDisabled(); }
+        // Require NFT collection and array of tokenId arrays be equal length
+        if (_nft.length != _tokenIds.length) { revert ArrayLengthMismatch(); }
+        // Iterate through each collection
+        for (uint256 i; i < _nft.length;) {
+            // Confirm collection is burnable
+            if (!burnableCollections[_nft[i]]) { revert NotBurnableCollection(); }
+            // Iterate through all tokenIds for the collection
+            for (uint256 j; j < _tokenIds[i].length;) {
+                // Balance is checked and reduction validated to ensure burn took place
+                uint256 nftBal = IERC721(_nft[i]).balanceOf(msg.sender);
+                // Attempt to call a burn function, otherwise attempt to destroy token by sending to zero or dead address
+                try IERC721Burn(_nft[i]).burn(_tokenIds[i][j]) { } catch { }
+                if (nftBal == IERC721(_nft[i]).balanceOf(msg.sender)) {
+                    try IERC721(_nft[i]).transferFrom(msg.sender, address(0x0), _tokenIds[i][j]) { }
+                    catch { IERC721(_nft[i]).transferFrom(msg.sender, address(0xDEAD), _tokenIds[i][j]); }
+                }
+                if (IERC721(_nft[i]).balanceOf(msg.sender) >= nftBal) { revert TokenNotBurned(); }
+                ++burnedTokens[msg.sender];
+                unchecked { ++j; }
+            }
+            unchecked { ++i; }
+        }
+        uint256 mintAmount = burnedTokens[msg.sender] / burnsToMint;
+        burnedTokens[msg.sender] -= (mintAmount * burnsToMint);
+        _mint(_to, mintAmount);
+    }
+    // Configure mint to burn functionality by specifying allowed collections and how many tokens are required
+    // Amount is shared across all collections
+    // Set _amount to zero to disable mintBurn
+    function configureMintBurn(address[] memory _nft, uint256 _amount) public virtual onlyOwner {
+        for (uint256 i; i < _nft.length;) {
+            if (_amount == 0) { burnableCollections[_nft[i]] = false; }
+            else { burnableCollections[_nft[i]] = true;}
+            unchecked { ++i; }
+        }
+        burnsToMint = _amount;
+    }
+
+    // Lock tokens to mint, timelock period is defined per token, token timelock will reset each time a respective token is locked
+    function mintLockTokens(
+        address _to, 
+        address[] memory _tokens, 
+        uint256[] memory _amounts
+    ) public virtual payable {
+        // TODO: Replicate mintable modifier logic
+        // Require NFT collection and array of tokenId arrays be equal length
+        if (_tokens.length != _amounts.length) { revert ArrayLengthMismatch(); }
+        for (uint256 i; i < _tokens.length;) {
+            // Retrieve token and amount for better code readability
+            address token = _tokens[i];
+            uint256 amount = _amounts[i];
+            // Confirm token is lockable
+            uint256 requiredAmount = tokenLockAmounts[token];
+            if (requiredAmount == 0) { revert TokenNotLockable(); }
+            if (tokenLockAmounts[token] > _amounts[i]) { revert NotEnoughTokensLocked(); }
+
+            // TODO: Calculate how many mints can take place with amount
+
+            // Transfer tokens and confirm it actually occurred
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            IERC20(token).transferFrom(msg.sender, address(this), amount);
+            if (balance >= IERC20(token).balanceOf(address(this))) { revert TransferFailed(); }
+
+            // Log token lock
+            lockedTokens[msg.sender][token] += amount;
+            lockTimestamp[msg.sender][token] = block.timestamp + tokenTimelock[token]; // Reset token timelock every mint
+            emit TokensLocked(token, amount);
+
+            // TODO: Mint based on amount
+
+            unchecked { ++i; }
+        }
+    }
+    // Configure lock tokens to mint function by specifying token address, amounts, and timelock periods per token
+    // Setting amount to zero will disable token as a lockable option
+    function configureMintLockTokens(
+        address[] memory _tokens, 
+        uint256[] memory _amounts, 
+        uint256[] memory _timestamps
+    ) public virtual onlyOwner {
+        // Confirm all arrays are equal length
+        uint256 length = _tokens.length;
+        if (length != _amounts.length && length != _timestamps.length) { revert ArrayLengthMismatch(); }
+        for (uint256 i; i < length;) {
+            tokenLockAmounts[_tokens[i]] = _amounts[i];
+            tokenTimelock[_tokens[i]] = _timestamps[i];
+            unchecked { ++i; }
+        }
     }
 
     // Vault contract management
