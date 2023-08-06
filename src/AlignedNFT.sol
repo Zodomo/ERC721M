@@ -59,6 +59,8 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
         _setDefaultRoyalty(_receiver, _royaltyFee);
     }
 
+    // TODO: Implement blacklist
+
     // Change recipient address for non-aligned mint funds
     function _changeFundsRecipient(address _to) internal {
         if (_to == address(0)) { revert ZeroAddress(); }

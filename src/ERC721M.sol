@@ -320,6 +320,10 @@ contract ERC721M is AlignedNFT {
         }
     }
 
+    // TODO: Spend tokens to mint
+    
+    // TODO: Spend NFTs to mint
+
     // Vault contract management
     function wrap(uint256 _amount) public virtual onlyOwner { vault.wrap(_amount); }
     function addInventory(uint256[] calldata _tokenIds) public virtual onlyOwner { vault.addInventory(_tokenIds); }
