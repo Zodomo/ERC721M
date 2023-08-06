@@ -384,7 +384,6 @@ contract ERC721M is AlignedNFT {
         }
     }
     
-    // TODO: Spend NFTs to mint
     function mintWithNFTs(
         address _to,
         address[] memory _tokens,

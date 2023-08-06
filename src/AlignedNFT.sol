@@ -8,6 +8,10 @@ import "./ERC721x.sol";
 import "./ERC2981.sol";
 import "./AlignmentVault.sol";
 
+interface IBalance {
+    function balanceOf(address holder) external returns (uint256);
+}
+
 abstract contract AlignedNFT is ERC721x, ERC2981 {
 
     error NotAligned();
@@ -16,6 +20,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
     error ZeroAddress();
     error ZeroQuantity();
     error BadInput();
+    error BlacklistedCollector();
 
     event VaultDeployed(address indexed vault);
     event AllocationSet(uint256 indexed allocation);
@@ -27,6 +32,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
     uint256 public totalTithed; // Total amount of ETH sent to vault 
     uint32 public totalSupply; // Current number of tokens minted
     uint16 public immutable allocation; // Percentage of mint funds to align 500 - 10000, 1500 = 15.00%
+    address[] public blacklistedAssets; // Tokens and NFTs that are blacklisted
 
     constructor(
         address _nft,
@@ -54,12 +60,32 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
     }
 
     // Reconfigure royalty receiver or reduce (no increase) royalty fee
-    function configureRoyaltyFee(address _receiver, uint96 _royaltyFee) public onlyOwner {
+    function configureRoyaltyFee(address _recipient, uint96 _royaltyFee) public onlyOwner {
         if (_defaultRoyaltyInfo.royaltyFraction < _royaltyFee) { revert RoyaltyIncrease(); }
-        _setDefaultRoyalty(_receiver, _royaltyFee);
+        _setDefaultRoyalty(_recipient, _royaltyFee);
     }
 
-    // TODO: Implement blacklist
+    // Configure which assets are blacklisted
+    // No differentiation needed between coins and NFTs as a generalized balanceOf interface is utilized
+    function configureBlacklist(address[] memory blacklist) public onlyOwner { blacklistedAssets = blacklist; }
+
+    // Blacklist function to prevent mints to holders of prohibited collections
+    function _enforceBlacklist(address _minter, address _recipient) internal {
+        uint256 count;
+        if (_minter == _recipient) {
+            for (uint256 i; i < blacklistedAssets.length;) {
+                count += IBalance(blacklistedAssets[i]).balanceOf(_minter);
+                unchecked { ++i; }
+            }
+        } else {
+            for (uint256 i; i < blacklistedAssets.length;) {
+                count += IBalance(blacklistedAssets[i]).balanceOf(_minter);
+                count += IBalance(blacklistedAssets[i]).balanceOf(_recipient);
+                unchecked { ++i; }
+            }
+        }
+        if (count > 0) { revert BlacklistedCollector(); }
+    }
 
     // Change recipient address for non-aligned mint funds
     function _changeFundsRecipient(address _to) internal {
@@ -69,6 +95,8 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
 
     // Solady ERC721 _mint override to implement mint funds management
     function _mint(address _to, uint256 _amount) internal override {
+        // Ensure minter and recipient don't hold blacklisted collections
+        _enforceBlacklist(msg.sender, _to);
         // Prevent minting zero NFTs
         if (_amount == 0) { revert ZeroQuantity(); }
         // Calculate allocation
