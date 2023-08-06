@@ -46,13 +46,14 @@ contract ERC721M is AlignedNFT {
     uint256 public immutable maxSupply;
     uint256 public price;
     uint256 public burnsToMint;
-    mapping(address => uint256[]) public collectionDiscount; // NFT address => [Discount Price, Quantity of Discounted Mints]
+    // NFT address => [Discount Price, Quantity of Discounted Mints]
+    mapping(address => uint256[]) public collectionDiscount;
     mapping(address => bool) public burnableCollections; // Collections that are eligible for burn to mint
     mapping(address => uint256) public burnedTokens; // How many tokens an address has burned
-    mapping(address => uint256) public tokenTimelock; // Timelock period for each token
-    mapping(address => uint256) public tokenLockAmounts; // Amount of tokens required to lock to mint, token is not allowed if zero
-    mapping(address => mapping(address => uint256)) public lockedTokens; // How many tokens of any type have been locked, msg.sender => (token => amount)
-    mapping(address => mapping(address => uint256)) public lockTimestamp; // Timestamp for when specific token lock ends per token, msg.sender => (token => timestamp)
+    // Token address => [Discount Price, Lock Quantity, Timelock Period, Number of Mints]
+    mapping(address => uint256[]) public lockableTokens;
+    // msg.sender => (token => [Lock Quantity, Unlock Timestamp])
+    mapping(address => mapping(address => uint256[])) public lockedTokens;
 
     modifier mintable(uint256 _amount) {
         if (!mintOpen) { revert MintClosed(); }
@@ -242,45 +243,71 @@ contract ERC721M is AlignedNFT {
         // TODO: Replicate mintable modifier logic
         // Require NFT collection and array of tokenId arrays be equal length
         if (_tokens.length != _amounts.length) { revert ArrayLengthMismatch(); }
+        uint256 requiredPayment;
+        uint256 mintNum;
+
         for (uint256 i; i < _tokens.length;) {
             // Retrieve token and amount for better code readability
             address token = _tokens[i];
             uint256 amount = _amounts[i];
+            uint256 discount = lockableTokens[token][0];
             // Confirm token is lockable
-            uint256 requiredAmount = tokenLockAmounts[token];
+            uint256 requiredAmount = lockableTokens[token][1];
             if (requiredAmount == 0) { revert TokenNotLockable(); }
-            if (tokenLockAmounts[token] > _amounts[i]) { revert NotEnoughTokensLocked(); }
+            if (requiredAmount > _amounts[i]) { revert NotEnoughTokensLocked(); }
+            if (discount > msg.value) { revert InsufficientPayment(); }
 
-            // TODO: Calculate how many mints can take place with amount
+            // Determine how many mints can take place and exact number of required tokens
+            uint256 canMint = _amounts[i] / requiredAmount;
+            uint256 requiredTokens = canMint * requiredAmount;
+            // Tally requiredPayment and mintNum for post-loop validation
+            requiredPayment += canMint * discount;
+            mintNum += canMint;
+            // Confirm mints are available and deduct canMint from mint allocation for locked token
+            if (canMint > lockableTokens[token][3]) { revert DiscountExceeded(); }
+            unchecked { lockableTokens[token][3] -= canMint; }
 
             // Transfer tokens and confirm it actually occurred
             uint256 balance = IERC20(token).balanceOf(address(this));
-            IERC20(token).transferFrom(msg.sender, address(this), amount);
+            IERC20(token).transferFrom(msg.sender, address(this), requiredTokens);
             if (balance >= IERC20(token).balanceOf(address(this))) { revert TransferFailed(); }
 
             // Log token lock
-            lockedTokens[msg.sender][token] += amount;
-            lockTimestamp[msg.sender][token] = block.timestamp + tokenTimelock[token]; // Reset token timelock every mint
+            lockedTokens[msg.sender][token][0] += amount;
+            lockedTokens[msg.sender][token][1] = block.timestamp + lockableTokens[token][2]; // Reset token timelock every mint
             emit TokensLocked(token, amount);
-
-            // TODO: Mint based on amount
 
             unchecked { ++i; }
         }
+
+        // Require msg.value covers discount price of all locked token mints
+        if (msg.value < requiredPayment) { revert InsufficientPayment(); }
+        // Mint proper amount
+        _mint(_to, mintNum);
     }
     // Configure lock tokens to mint function by specifying token address, amounts, and timelock periods per token
     // Setting amount to zero will disable token as a lockable option
     function configureMintLockTokens(
         address[] memory _tokens, 
-        uint256[] memory _amounts, 
-        uint256[] memory _timestamps
+        uint256[] memory _discounts, // Discounted mint price
+        uint256[] memory _amounts, // Required token lock amount
+        uint256[] memory _timestamps, // Lock duration
+        uint256[] memory _allocation // Number of allowed mints for a specific token lock
     ) public virtual onlyOwner {
         // Confirm all arrays are equal length
         uint256 length = _tokens.length;
-        if (length != _amounts.length && length != _timestamps.length) { revert ArrayLengthMismatch(); }
+        if (length != _discounts.length && 
+            length != _amounts.length &&
+            length != _timestamps.length &&
+            length != _allocation.length) { revert ArrayLengthMismatch(); }
+
         for (uint256 i; i < length;) {
-            tokenLockAmounts[_tokens[i]] = _amounts[i];
-            tokenTimelock[_tokens[i]] = _timestamps[i];
+            uint256[] memory lockConfig = new uint256[](4);
+            lockConfig[0] = _discounts[i];
+            lockConfig[1] = _amounts[i];
+            lockConfig[2] = _timestamps[i];
+            lockConfig[3] = _allocation[i];
+            lockableTokens[_tokens[i]] = lockConfig;
             unchecked { ++i; }
         }
     }
@@ -297,7 +324,10 @@ contract ERC721M is AlignedNFT {
     function stakeLiquidity() public virtual onlyOwner { vault.stakeLiquidity(); }
     function claimRewards(address _recipient) public virtual onlyOwner { vault.claimRewards(_recipient); }
     function compoundRewards(uint112 _eth, uint112 _weth) public virtual onlyOwner { vault.compoundRewards(_eth, _weth); }
-    function rescueERC20(address _token, address _to) public virtual onlyOwner { vault.rescueERC20(_token, _to); }
+    function rescueERC20(address _token, address _to) public virtual onlyOwner {
+        // TODO: Prevent withdrawal of locked tokens
+        vault.rescueERC20(_token, _to);
+    }
     function rescueERC721(
         address _address,
         address _to,
