@@ -18,6 +18,7 @@ contract ERC721M is AlignedNFT {
     error MintClosed();
     error CapReached();
     error NoDiscount();
+    error LockedToken();
     error CapExceeded();
     error TokenNotBurned();
     error DiscountExceeded();
@@ -80,7 +81,6 @@ contract ERC721M is AlignedNFT {
     ) payable {
         // Prevent bad royalty fee
         if (_royaltyFee > 10000) { revert BadInput(); }
-
         // Set all relevant metadata and contract configurations
         _name = __name;
         _symbol = __symbol;
@@ -193,7 +193,8 @@ contract ERC721M is AlignedNFT {
         address[] memory _nft, 
         uint256[][] memory _tokenIds
     ) public virtual payable {
-        // TODO: Replicate mintable modifier logic
+        if (!mintOpen) { revert MintClosed(); }
+        if (totalSupply >= maxSupply) { revert CapReached(); }
         // If burnsToMint is zero, mintBurn is disabled
         if (burnsToMint == 0) { revert MintBurnDisabled(); }
         // Require NFT collection and array of tokenId arrays be equal length
@@ -218,7 +219,9 @@ contract ERC721M is AlignedNFT {
             }
             unchecked { ++i; }
         }
+        // Calculate mint amount and replicate mintable modifier checks
         uint256 mintAmount = burnedTokens[msg.sender] / burnsToMint;
+        if (totalSupply + mintAmount > maxSupply) { revert CapExceeded(); }
         burnedTokens[msg.sender] -= (mintAmount * burnsToMint);
         _mint(_to, mintAmount);
     }
@@ -240,7 +243,8 @@ contract ERC721M is AlignedNFT {
         address[] memory _tokens, 
         uint256[] memory _amounts
     ) public virtual payable {
-        // TODO: Replicate mintable modifier logic
+        if (!mintOpen) { revert MintClosed(); }
+        if (totalSupply >= maxSupply) { revert CapReached(); }
         // Require NFT collection and array of tokenId arrays be equal length
         if (_tokens.length != _amounts.length) { revert ArrayLengthMismatch(); }
         uint256 requiredPayment;
@@ -276,12 +280,16 @@ contract ERC721M is AlignedNFT {
             lockedTokens[msg.sender][token][0] += amount;
             lockedTokens[msg.sender][token][1] = block.timestamp + lockableTokens[token][2]; // Reset token timelock every mint
             emit TokensLocked(token, amount);
+            // Log token lock under contract address to prevent rescue functions from withdrawing locked tokens
+            lockedTokens[address(this)][token][0] += amount;
 
             unchecked { ++i; }
         }
 
         // Require msg.value covers discount price of all locked token mints
         if (msg.value < requiredPayment) { revert InsufficientPayment(); }
+        // Prevent mint cap from being exceeded
+        if (totalSupply + mintNum > maxSupply) { revert CapExceeded(); }
         // Mint proper amount
         _mint(_to, mintNum);
     }
@@ -325,7 +333,7 @@ contract ERC721M is AlignedNFT {
     function claimRewards(address _recipient) public virtual onlyOwner { vault.claimRewards(_recipient); }
     function compoundRewards(uint112 _eth, uint112 _weth) public virtual onlyOwner { vault.compoundRewards(_eth, _weth); }
     function rescueERC20(address _token, address _to) public virtual onlyOwner {
-        // TODO: Prevent withdrawal of locked tokens
+        if (lockedTokens[address(this)][_token][0] > 0) { revert LockedToken(); }
         vault.rescueERC20(_token, _to);
     }
     function rescueERC721(
