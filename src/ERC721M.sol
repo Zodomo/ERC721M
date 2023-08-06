@@ -55,6 +55,8 @@ contract ERC721M is AlignedNFT {
     mapping(address => uint256[]) public lockableTokens;
     // msg.sender => (token => [Lock Quantity, Unlock Timestamp])
     mapping(address => mapping(address => uint256[])) public lockedTokens;
+    mapping(address => uint256[]) public mintableWithTokens; // Token => [Price, Number of Mints]
+    mapping(address => uint256[]) public mintableWithNFTs; // Token => [Price, Number of Mints]
 
     modifier mintable(uint256 _amount) {
         if (!mintOpen) { revert MintClosed(); }
@@ -243,6 +245,7 @@ contract ERC721M is AlignedNFT {
         address[] memory _tokens, 
         uint256[] memory _amounts
     ) public virtual payable {
+        // Mintable modifier checks
         if (!mintOpen) { revert MintClosed(); }
         if (totalSupply >= maxSupply) { revert CapReached(); }
         // Require NFT collection and array of tokenId arrays be equal length
@@ -320,9 +323,127 @@ contract ERC721M is AlignedNFT {
         }
     }
 
-    // TODO: Spend tokens to mint
+    // Spend tokens to mint
+    function mintWithTokens(
+        address _to,
+        address[] memory _tokens,
+        uint256[] memory _amounts
+    ) public virtual payable {
+        // Mintable modifier checks
+        if (!mintOpen) { revert MintClosed(); }
+        if (totalSupply >= maxSupply) { revert CapReached(); }
+        // Require NFT collection and array of tokenId arrays be equal length
+        if (_tokens.length != _amounts.length) { revert ArrayLengthMismatch(); }
+        uint256 mintNum;
+        address recipient = owner();
+
+        for (uint256 i; i < _tokens.length;) {
+            // Retrieve values
+            address token = _tokens[i];
+            uint256 amount = _amounts[i];
+            uint256 tokenPrice = mintableWithTokens[token][0];
+            uint256 discountQty = mintableWithTokens[token][1];
+            uint256 num = amount / tokenPrice;
+
+            // Ensure mint with token is allowed
+            if (discountQty == 0) { revert NoDiscount(); }
+
+            // Confirm discount isn't exceeded and that transfer is successful
+            if (num > amount / discountQty) { revert DiscountExceeded(); }
+            uint256 balance = IERC20(token).balanceOf(recipient);
+            IERC20(token).transferFrom(msg.sender, recipient, num * tokenPrice);
+            if (balance >= IERC20(token).balanceOf(recipient)) { revert TransferFailed(); }
+            mintNum += num;
+            
+            // Reduce discount mint quantity by minted amount
+            unchecked { 
+                mintableWithTokens[token][1] -= num;
+                ++i;
+            }
+        }
+
+        // Prevent cap overage and process mint
+        if (totalSupply + mintNum > maxSupply) { revert CapExceeded(); }
+        _mint(_to, mintNum);
+    }
+    function configureMintWithTokens(
+        address[] memory _tokens,
+        uint256[] memory _prices,
+        uint256[] memory _quantity
+    ) public virtual onlyOwner {
+        // Confirm array lengths all match
+        uint256 length = _tokens.length;
+        if (_prices.length != length && _quantity.length != length) { revert ArrayLengthMismatch(); }
+        // Configure all tokens
+        for (uint256 i; i < length;) {
+            uint256[] memory mintConfig = new uint256[](2);
+            mintConfig[0] = _prices[i];
+            mintConfig[1] = _quantity[i];
+            mintableWithTokens[_tokens[i]] = mintConfig;
+            unchecked { ++i; }
+        }
+    }
     
     // TODO: Spend NFTs to mint
+    function mintWithNFTs(
+        address _to,
+        address[] memory _tokens,
+        uint256[][] memory _tokenIds
+    ) public virtual {
+        // Mintable modifier checks
+        if (!mintOpen) { revert MintClosed(); }
+        if (totalSupply >= maxSupply) { revert CapReached(); }
+        // Require NFT collection and array of tokenId arrays be equal length
+        if (_tokens.length != _tokenIds.length) { revert ArrayLengthMismatch(); }
+        uint256 mintNum;
+        address recipient = owner();
+
+        for (uint256 i; i < _tokens.length;) {
+            // Retrieve values
+            address token = _tokens[i];
+            uint256 amount = _tokenIds[i].length;
+            uint256 nftPrice = mintableWithNFTs[token][0];
+            uint256 discountQty = mintableWithNFTs[token][1];
+            uint256 mintQty = amount / nftPrice;
+
+            // Ensure mint with NFT is allowed
+            if (discountQty == 0) { revert NoDiscount(); }
+            if (nftPrice > amount) { revert InsufficientPayment(); }
+            if (mintQty > discountQty) { revert DiscountExceeded(); }
+
+            // Process all token transfers
+            for (uint256 j; j < mintQty * nftPrice;) {
+                IERC721(token).transferFrom(msg.sender, recipient, _tokenIds[i][j]);
+                if (IERC721(token).ownerOf(_tokenIds[i][j]) != recipient) { revert TransferFailed(); }
+                unchecked { ++j; }
+            }
+
+            // Tally mint quantity
+            mintNum += mintQty;
+            unchecked { ++i; }
+        }
+
+        // Prevent cap overage and process mint
+        if (totalSupply + mintNum > maxSupply) { revert CapExceeded(); }
+        _mint(_to, mintNum);
+    }
+    function configureMintWithNFTs(
+        address[] memory _tokens,
+        uint256[] memory _prices,
+        uint256[] memory _quantity
+    ) public virtual onlyOwner {
+        // Confirm array lengths all match
+        uint256 length = _tokens.length;
+        if (_prices.length != length && _quantity.length != length) { revert ArrayLengthMismatch(); }
+        // Configure all tokens
+        for (uint256 i; i < length;) {
+            uint256[] memory mintConfig = new uint256[](2);
+            mintConfig[0] = _prices[i];
+            mintConfig[1] = _quantity[i];
+            mintableWithNFTs[_tokens[i]] = mintConfig;
+            unchecked { ++i; }
+        }
+    }
 
     // Vault contract management
     function wrap(uint256 _amount) public virtual onlyOwner { vault.wrap(_amount); }
