@@ -18,13 +18,13 @@ contract AlignedNFTTest is DSTestPlus {
         alignedNFT_LA = new TestingAlignedNFT(
             0x5Af0D9827E0c53E4799BB226655A1de152A425a5, // Milady NFT
             address(42), // Non-aligned funds recipient
-            4200 // 42.00% cut
+            4200 // 42.00% allocated
         );
         // High alignment / low dev cut
         alignedNFT_HA = new TestingAlignedNFT(
             0x5Af0D9827E0c53E4799BB226655A1de152A425a5, // Milady NFT
             address(42), // Non-aligned funds recipient
-            1500 // 15.00% cut
+            1500 // 15.00% allocated
         );
         hevm.deal(address(this), 100 ether);
     }
@@ -56,8 +56,8 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 tithe = (_payment * 8500) / 10000;
-        require(alignedNFT_HA.vaultBalance() == tithe);
+        uint256 total = FixedPointMathLib.fullMulDivUp(_payment, 1500, 10000);
+        require(alignedNFT_HA.vaultBalance() == total);
     }
 
     function test_changeFundsRecipient(address _to) public {
@@ -79,34 +79,23 @@ contract AlignedNFTTest is DSTestPlus {
             require(IERC721(address(alignedNFT_HA)).ownerOf(i + 1) == _to);
         }
     }
-    function test_mint_tithe(uint256 _amount, uint256 _payment) public {
-        hevm.assume(_amount != 0);
-        hevm.assume(_amount <= 10000);
-        hevm.assume(_payment > 1 gwei);
-        hevm.assume(_payment < 0.01 ether);
-        alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 tithe = (_payment * 8500) / 10000;
-        require(alignedNFT_HA.vaultBalance() == tithe);
-    }
-    function test_mint_fundsAllocation(uint256 _amount, uint256 _payment) public {
-        uint256 dust = address(42).balance;
+    function test_mint_alignedAllocation(uint256 _amount, uint256 _payment) public {
         hevm.assume(_amount != 0);
         hevm.assume(_amount <= 10000);
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_LA.execute_mint{ value: _payment }(address(this), _amount);
-        alignedNFT_LA.execute_withdrawFunds(address(42), type(uint256).max);
         uint256 allocation = FixedPointMathLib.fullMulDivUp(4200, _payment, 10000);
-        require((address(42).balance - dust) == allocation);
+        require(alignedNFT_LA.vaultBalance() == allocation);
     }
-    function test_mint_poolAllocation(uint256 _amount, uint256 _payment) public {
+    function test_mint_teamAllocation(uint256 _amount, uint256 _payment) public {
         hevm.assume(_amount != 0);
         hevm.assume(_amount <= 10000);
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 allocation = FixedPointMathLib.fullMulDivUp(1500, _payment, 10000);
-        require(address(alignedNFT_HA).balance == allocation);
+        uint256 amount = FixedPointMathLib.fullMulDiv(8500, _payment, 10000);
+        require (amount == address(alignedNFT_HA).balance);
     }
     function test_mint_ZeroQuantity() public {
         hevm.expectRevert(AlignedNFT.ZeroQuantity.selector);
@@ -120,9 +109,10 @@ contract AlignedNFTTest is DSTestPlus {
         hevm.assume(_payment > 1 gwei);
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 allocation = FixedPointMathLib.fullMulDivUp(1500, _payment, 10000);
+        uint256 withdraw = FixedPointMathLib.fullMulDiv(8500, _payment, 10000);
+        require(withdraw == address(alignedNFT_HA).balance);
         alignedNFT_HA.execute_withdrawFunds(address(42), type(uint256).max);
-        require((address(42).balance - dust) == allocation);
+        require((address(42).balance - dust) == withdraw);
     }
     function test_withdrawFunds_exact(uint256 _amount, uint256 _payment) public {
         uint256 dust = address(42).balance;

@@ -28,8 +28,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
     AlignmentVault public immutable vault; // Smart contract wallet for allocated funds
     address public immutable alignedNft; // Aligned NFT collection
     address public fundsRecipient; // Recipient of remaining non-aligned mint funds
-    uint256 public totalAllocated; // Total amount of ETH sent to devs
-    uint256 public totalTithed; // Total amount of ETH sent to vault 
+    uint256 public totalAllocated; // Total amount of ETH allocated to aligned collection
     uint32 public totalSupply; // Current number of tokens minted
     uint16 public immutable allocation; // Percentage of mint funds to align 500 - 10000, 1500 = 15.00%
     address[] public blacklistedAssets; // Tokens and NFTs that are blacklisted
@@ -101,22 +100,21 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
         if (_amount == 0) { revert ZeroQuantity(); }
         // Calculate allocation
         uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 10000);
-        // Calculate tithe (remainder)
-        uint256 tithe = msg.value - mintAlloc;
         // Count allocation
         totalAllocated += mintAlloc;
 
         // Send tithe to AlignmentVault
-        (bool titheSuccess, ) = payable(address(vault)).call{ value: tithe }("");
-        // Count tithe
-        totalTithed += tithe;
-        if (!titheSuccess) { revert TransferFailed(); }
+        (bool success, ) = payable(address(vault)).call{ value: mintAlloc }("");
+        if (!success) { revert TransferFailed(); }
 
         // Process ERC721 mints
+        // totalSupply is read once externally from loop to reduce SLOADs to save gas
+        uint256 supply = totalSupply;
         for (uint256 i; i < _amount;) {
-            super._mint(_to, ++totalSupply);
+            super._mint(_to, ++supply);
             unchecked { ++i; }
         }
+        totalSupply += uint32(_amount);
     }
 
     // Withdraw non-aligned mint funds to recipient

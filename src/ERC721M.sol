@@ -457,7 +457,7 @@ contract ERC721M is AlignedNFT {
     function claimRewards(address _recipient) public virtual onlyOwner { vault.claimRewards(_recipient); }
     function compoundRewards(uint112 _eth, uint112 _weth) public virtual onlyOwner { vault.compoundRewards(_eth, _weth); }
     function rescueERC20(address _token, address _to) public virtual onlyOwner {
-        if (lockedTokens[address(this)][_token][0] > 0) { revert LockedToken(); }
+        if (lockedTokens[address(this)][_token].length != 0) { revert LockedToken(); }
         vault.rescueERC20(_token, _to);
     }
     function rescueERC721(
