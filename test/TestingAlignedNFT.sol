@@ -12,7 +12,7 @@ contract TestingAlignedNFT is AlignedNFT {
         address _nft,
         address _fundsRecipient,
         uint16 _allocation
-    ) AlignedNFT(_nft, _fundsRecipient, _allocation) { }
+    ) AlignedNFT(_nft, _fundsRecipient, _allocation) { _initializeOwner(msg.sender); }
 
     function name() public pure override returns (string memory) { return ("AlignedNFT Test"); }
     function symbol() public pure override returns (string memory) { return ("ANFTTest"); }
@@ -22,4 +22,6 @@ contract TestingAlignedNFT is AlignedNFT {
 
     function execute_mint(address _to, uint256 _amount) public payable { _mint(_to, _amount); }
     function execute_withdrawFunds(address _to, uint256 _amount) public { _withdrawFunds(_to, _amount); }
+
+    function execute_setTokenRoyalty() public { _setTokenRoyalty(0, msg.sender, 420); }
 }

@@ -9,6 +9,10 @@ import "../lib/solady/test/utils/mocks/MockERC721.sol";
 import "liquidity-helper/UniswapV2LiquidityHelper.sol";
 import "./TestingAlignmentVault.sol";
 
+interface IFallback {
+    function doesntExist(uint256 _unusedVar) external payable;
+}
+
 contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
 
     error Unauthorized();
@@ -111,7 +115,9 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         ) == 0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // MILADYWETH SLP
     }
 
-    
+    function test_estimateFloor() public view {
+        require(alignmentVault.call_estimateFloor() > 0);
+    }
     
     function test_wrap(uint256 _amount) public {
         hevm.assume(_amount < 420 ether);
@@ -366,5 +372,9 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         address liqHelper = alignmentVault.view_liqHelper();
         (bool success, ) = payable(liqHelper).call{ value: 1 ether }("");
         require(success);
+    }
+    function testFallback() public {
+        IFallback(address(alignmentVault)).doesntExist{ value: 1 ether }(420);
+        require(address(alignmentVault).balance == 1 ether);
     }
 }

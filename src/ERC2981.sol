@@ -8,6 +8,9 @@ import "./IERC2981.sol";
 
 abstract contract ERC2981 is IERC2981 {
 
+    error ExceedsDenominator();
+    error InvalidReceiver();
+
     event RoyaltyConfigured(address indexed receiver, uint96 indexed royaltyFee);
     event RoyaltyConfigured(uint256 tokenId, address indexed receiver, uint96 indexed royaltyFee);
 
@@ -43,8 +46,8 @@ abstract contract ERC2981 is IERC2981 {
      * - `feeNumerator` cannot be greater than the fee denominator.
      */
     function _setDefaultRoyalty(address receiver, uint96 feeNumerator) internal virtual {
-        require(feeNumerator <= 10000, "ERC2981: royalty fee will exceed salePrice");
-        require(receiver != address(0), "ERC2981: invalid receiver");
+        if (feeNumerator > 10000) { revert ExceedsDenominator(); }
+        if (receiver == address(0)) { revert InvalidReceiver(); }
 
         _defaultRoyaltyInfo = RoyaltyInfo(receiver, feeNumerator);
 
@@ -54,9 +57,7 @@ abstract contract ERC2981 is IERC2981 {
     /**
      * @dev Removes default royalty information.
      */
-    function _deleteDefaultRoyalty() internal virtual {
-        delete _defaultRoyaltyInfo;
-    }
+    function _deleteDefaultRoyalty() internal virtual { delete _defaultRoyaltyInfo; }
 
     /**
      * @dev Sets the royalty information for a specific token id, overriding the global default.
@@ -71,8 +72,8 @@ abstract contract ERC2981 is IERC2981 {
         address receiver,
         uint96 feeNumerator
     ) internal virtual {
-        require(feeNumerator <= 10000, "ERC2981: royalty fee will exceed salePrice");
-        require(receiver != address(0), "ERC2981: Invalid parameters");
+        if (feeNumerator > 10000) { revert ExceedsDenominator(); }
+        if (receiver == address(0)) { revert InvalidReceiver(); }
 
         _tokenRoyaltyInfo[tokenId] = RoyaltyInfo(receiver, feeNumerator);
         emit RoyaltyConfigured(tokenId, receiver, feeNumerator);

@@ -8,6 +8,10 @@ import "../lib/solady/test/utils/mocks/MockERC721.sol";
 import "solady/utils/LibString.sol";
 import "../src/ERC721M.sol";
 
+interface IFallback {
+    function doesntExist(uint256 _unusedVar) external payable;
+}
+
 contract ERC721MTest is DSTestPlus, ERC721Holder {
 
     using LibString for uint256;
@@ -195,8 +199,102 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(address(template.vault()).balance == 1 ether);
     }
     function testFallback() public {
-        (bool success, ) = payable(address(template)).call{ value: 1 ether }(bytes("fallback"));
-        require(success);
+        IFallback(address(template)).doesntExist{ value: 1 ether }(420);
         require(address(template.vault()).balance == 1 ether);
+    }
+
+    function testTransferFromUnlocked() public {
+        template.openMint();
+        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.transferFrom(address(this), address(42), 1);
+        require(template.ownerOf(1) == address(42));
+    }
+    function testTransferFromLocked() public {
+        address[] memory approved = new address[](1);
+        approved[0] = address(this);
+        bool[] memory status = new bool[](1);
+        status[0] = true;
+        template.updateApprovedContracts(approved, status);
+
+        template.openMint();
+        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.lockId(1);
+        hevm.expectRevert(ERC721x.TokenLock.selector);
+        template.transferFrom(address(this), address(42), 1);
+    }
+
+    function testSafeTransferFromUnlocked() public {
+        template.openMint();
+        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.safeTransferFrom(address(this), address(42), 1, bytes("milady"));
+        require(template.ownerOf(1) == address(42));
+    }
+    function testSafeTransferFromLocked() public {
+        address[] memory approved = new address[](1);
+        approved[0] = address(this);
+        bool[] memory status = new bool[](1);
+        status[0] = true;
+        template.updateApprovedContracts(approved, status);
+
+        template.openMint();
+        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.lockId(1);
+        hevm.expectRevert(ERC721x.TokenLock.selector);
+        template.safeTransferFrom(address(this), address(42), 1, bytes("milady"));
+    }
+
+    function testLockId() public {
+        address[] memory approved = new address[](1);
+        approved[0] = address(this);
+        bool[] memory status = new bool[](1);
+        status[0] = true;
+        template.updateApprovedContracts(approved, status);
+
+        template.openMint();
+        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.lockId(1);
+        require(!template.isUnlocked(1));
+    }
+    function testLockId_TokenDoesNotExist() public {
+        hevm.expectRevert(ERC721.TokenDoesNotExist.selector);
+        template.lockId(1);
+    }
+
+    function testUnlockId() public {
+        address[] memory approved = new address[](1);
+        approved[0] = address(this);
+        bool[] memory status = new bool[](1);
+        status[0] = true;
+        template.updateApprovedContracts(approved, status);
+
+        template.openMint();
+        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.lockId(1);
+        template.unlockId(1);
+        require(template.isUnlocked(1));
+    }
+    function testUnlockId_TokenDoesNotExist() public {
+        hevm.expectRevert(ERC721.TokenDoesNotExist.selector);
+        template.unlockId(1);
+    }
+
+    function testFreeId() public {
+        address[] memory approved = new address[](1);
+        approved[0] = address(this);
+        bool[] memory status = new bool[](1);
+        status[0] = true;
+        template.updateApprovedContracts(approved, status);
+
+        template.openMint();
+        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.lockId(1);
+        status[0] = false;
+        template.updateApprovedContracts(approved, status);
+        template.freeId(1, address(this));
+        require(template.isUnlocked(1));
+    }
+    function testFreeId_TokenDoesNotExist() public {
+        hevm.expectRevert(ERC721.TokenDoesNotExist.selector);
+        template.freeId(1, address(this));
     }
 }

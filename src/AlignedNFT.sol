@@ -64,21 +64,28 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
         // Revert if royalties are disabled
         (address receiver, ) = royaltyInfo(0, 0);
         if (receiver == address(0)) { revert RoyaltiesDisabled(); }
+
         _setDefaultRoyalty(_recipient, _royaltyFee);
+        _setTokenRoyalty(0, receiver, _royaltyFee);
         // Event is emitted in _setDefaultRoyalty()
     }
 
     // Configure royalty receiver and royalty fee for a specific tokenId
-    function configureRoyaltyForId(
+    function configureRoyaltiesForId(
         uint256 _tokenId,
         address _recipient,
-        uint96 _royaltyFee
+        uint96 _feeNumerator
     ) public onlyOwner {
+        // Revert if royalties are disabled
+        (address receiver, ) = royaltyInfo(0, 0);
+        if (receiver == address(0)) { revert RoyaltiesDisabled(); }
         // Revert if resetting tokenId 0 as it is treated as royalties enablement status
         if (_tokenId == 0) { revert BadInput(); }
-        if (_recipient == address(0) && _royaltyFee != 0) { revert ZeroAddress(); }
-        if (_royaltyFee == 0) { _resetTokenRoyalty(_tokenId); }
-        else { _setTokenRoyalty(_tokenId, _recipient, _royaltyFee); }
+        
+        // Reset token royalty if fee is 0, else set it
+        if (_feeNumerator == 0) { _resetTokenRoyalty(_tokenId); }
+        else { _setTokenRoyalty(_tokenId, _recipient, _feeNumerator); }
+        // Event is emitted in _setDefaultRoyalty()
     }
 
     // Irreversibly isable royalties by resetting tokenId 0 royalty to (address(0), 0)

@@ -8,6 +8,8 @@ import "./LockRegistry.sol";
 
 abstract contract ERC721x is ERC721, LockRegistry {
 
+	error TokenLock();
+
 	/*
 	 *     bytes4(keccak256('freeId(uint256,address)')) == 0x94d216d6
 	 *     bytes4(keccak256('isUnlocked(uint256)')) == 0x72abc8b7
@@ -30,27 +32,27 @@ abstract contract ERC721x is ERC721, LockRegistry {
 	}
 
 	function transferFrom(address _from, address _to, uint256 _tokenId) public override virtual payable {
-		require(isUnlocked(_tokenId), "Token is locked");
-		ERC721.transferFrom(_from, _to, _tokenId);
+		if (!isUnlocked(_tokenId)) { revert TokenLock(); }
+		super.transferFrom(_from, _to, _tokenId);
 	}
 
 	function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes calldata _data) public override virtual payable {
-		require(isUnlocked(_tokenId), "Token is locked");
-		ERC721.safeTransferFrom(_from, _to, _tokenId, _data);
+		if (!isUnlocked(_tokenId)) { revert TokenLock(); }
+		super.safeTransferFrom(_from, _to, _tokenId, _data);
 	}
 
 	function lockId(uint256 _id) public override virtual {
-		require(_exists(_id), "Token !exist");
+		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_lockId(_id);
 	}
 
 	function unlockId(uint256 _id) public override virtual {
-		require(_exists(_id), "Token !exist");
+		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_unlockId(_id);
 	}
 
 	function freeId(uint256 _id, address _contract) public override virtual {
-		require(_exists(_id), "Token !exist");
+		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_freeId(_id, _contract);
 	}
 }
