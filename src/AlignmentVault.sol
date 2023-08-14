@@ -230,7 +230,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         return (reservoir);
     }
 
-    // TODO: Decode NFT order calldata to retrieve NFT collection address and order price
+    /* TODO: Decode NFT order calldata to retrieve NFT collection address and order price
     function decodeSeaportCalldata(bytes calldata data) public pure returns (
         OrderStructs.AdvancedOrder memory order,
         OrderStructs.ETHListingParams memory params,
@@ -354,7 +354,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         bytes memory data = abi.encodeWithSignature(FUNC_SELECTOR, order, params, fees);
         (bool success, ) = _SEAPORTV15MODULE.call{ value: params.amount }(data);
         if (!success) { revert SeaportPurchaseFailed(); }
-    }
+    } */
 
     // Add NFTs to NFTX Inventory
     // NOTE: This action imposes a timelock at NFTX
@@ -459,8 +459,7 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         if (_token == address(0)) {
             uint256 balance = address(this).balance;
             _liqHelper.emergencyWithdrawEther();
-            uint256 balanceDiff = address(this).balance - balance;
-            return (balanceDiff);
+            return (address(this).balance - balance);
         }
         // If _nftxInventory or _nftxLiquidity, rescue from liq helper to vault
         else if (_token == address(_WETH) || 

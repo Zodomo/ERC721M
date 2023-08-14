@@ -20,10 +20,13 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
     error ZeroAddress();
     error ZeroQuantity();
     error BadInput();
+    error RoyaltiesDisabled();
     error BlacklistedCollector();
 
+    event RoyaltyDisabled();
     event VaultDeployed(address indexed vault);
     event AllocationSet(uint256 indexed allocation);
+    event BlacklistConfigured(address[] indexed blacklist);
 
     AlignmentVault public immutable vault; // Smart contract wallet for allocated funds
     address public immutable alignedNft; // Aligned NFT collection
@@ -54,19 +57,43 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
     }
 
     // View AlignmentVault balance
-    function vaultBalance() public view returns (uint256) {
-        return (address(vault).balance);
+    function vaultBalance() public view returns (uint256) { return (address(vault).balance); }
+
+    // Configure royalty receiver and royalty fee
+    function configureRoyalties(address _recipient, uint96 _royaltyFee) public onlyOwner {
+        // Revert if royalties are disabled
+        (address receiver, ) = royaltyInfo(0, 0);
+        if (receiver == address(0)) { revert RoyaltiesDisabled(); }
+        _setDefaultRoyalty(_recipient, _royaltyFee);
+        // Event is emitted in _setDefaultRoyalty()
     }
 
-    // Reconfigure royalty receiver or reduce (no increase) royalty fee
-    function configureRoyaltyFee(address _recipient, uint96 _royaltyFee) public onlyOwner {
-        if (_defaultRoyaltyInfo.royaltyFraction < _royaltyFee) { revert RoyaltyIncrease(); }
-        _setDefaultRoyalty(_recipient, _royaltyFee);
+    // Configure royalty receiver and royalty fee for a specific tokenId
+    function configureRoyaltyForId(
+        uint256 _tokenId,
+        address _recipient,
+        uint96 _royaltyFee
+    ) public onlyOwner {
+        // Revert if resetting tokenId 0 as it is treated as royalties enablement status
+        if (_tokenId == 0) { revert BadInput(); }
+        if (_recipient == address(0) && _royaltyFee != 0) { revert ZeroAddress(); }
+        if (_royaltyFee == 0) { _resetTokenRoyalty(_tokenId); }
+        else { _setTokenRoyalty(_tokenId, _recipient, _royaltyFee); }
+    }
+
+    // Irreversibly isable royalties by resetting tokenId 0 royalty to (address(0), 0)
+    function disableRoyalties() public onlyOwner {
+        _deleteDefaultRoyalty();
+        _resetTokenRoyalty(0);
+        emit RoyaltyDisabled();
     }
 
     // Configure which assets are blacklisted
     // No differentiation needed between coins and NFTs as a generalized balanceOf interface is utilized
-    function configureBlacklist(address[] memory blacklist) public onlyOwner { blacklistedAssets = blacklist; }
+    function configureBlacklist(address[] memory blacklist) public onlyOwner {
+        blacklistedAssets = blacklist;
+        emit BlacklistConfigured(blacklist);
+    }
 
     // Blacklist function to prevent mints to holders of prohibited collections
     function _enforceBlacklist(address _minter, address _recipient) internal {

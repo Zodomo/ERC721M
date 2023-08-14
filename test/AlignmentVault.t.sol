@@ -338,21 +338,12 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(liqBalDiff > 0);
     }
     function test_rescueERC20_ETC() public {
-        testToken.transfer(address(alignmentVault), 1 ether);
-        uint256 testBal = testToken.balanceOf(address(42));
-        uint256 recoveredTEST = alignmentVault.execute_rescueERC20(address(testToken), address(42));
-        require(recoveredTEST > 0);
-        uint256 testBalDiff = testToken.balanceOf(address(42)) - testBal;
-        require(testBalDiff > 0);
-    }
-    function test_rescueERC20_ETC_liqHelper() public {
         address liqHelper = alignmentVault.view_liqHelper();
-        testToken.transfer(liqHelper, 1 ether);
-        uint256 testBal = testToken.balanceOf(address(42));
+        testToken.transfer(address(alignmentVault), 1 ether);
+        testToken.transfer(address(liqHelper), 1 ether);
         uint256 recoveredTEST = alignmentVault.execute_rescueERC20(address(testToken), address(42));
-        require(recoveredTEST > 0);
-        uint256 testBalDiff = testToken.balanceOf(address(42)) - testBal;
-        require(testBalDiff > 0);
+        require(recoveredTEST == 2 ether);
+        require(testToken.balanceOf(address(42)) == recoveredTEST);
     }
 
     function test_rescueERC721() public {

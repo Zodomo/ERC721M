@@ -32,11 +32,11 @@ contract TestingAlignmentVault is AlignmentVault {
         return (_pairFor(_tokenA, _tokenB));
     }
     function call_estimateFloor() public view returns (uint256) { return _estimateFloor(); }
-    function call_decodeSeaportCalldata(bytes calldata data) internal pure returns (
+    /* function call_decodeSeaportCalldata(bytes calldata data) internal pure returns (
         OrderStructs.AdvancedOrder memory order,
         OrderStructs.ETHListingParams memory params,
         OrderStructs.Fee[] memory fees
-    ) { return decodeSeaportCalldata(data); }
+    ) { return decodeSeaportCalldata(data); } */
     
     function execute_wrap(uint256 _eth) public { wrap(_eth); }
     function execute_addInventory(uint256[] calldata _tokenIds) public { addInventory(_tokenIds); }

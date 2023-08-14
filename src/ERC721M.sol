@@ -80,7 +80,8 @@ contract ERC721M is AlignedNFT {
         _alignedNFT,
         _fundsRecipient,
         _allocation
-    ) payable {
+    )
+    payable {
         // Prevent bad royalty fee
         if (_royaltyFee > 10000) { revert BadInput(); }
         // Set all relevant metadata and contract configurations
@@ -100,7 +101,9 @@ contract ERC721M is AlignedNFT {
         else { sender = msg.sender; }
         _initializeOwner(sender);
 
-        // Configure royalties for contract owner
+        // Initialize royalties
+        _setTokenRoyalty(0, sender, uint96(_royaltyFee));
+        // Configure default royalties for contract owner
         _setDefaultRoyalty(sender, uint96(_royaltyFee));
     }
 
