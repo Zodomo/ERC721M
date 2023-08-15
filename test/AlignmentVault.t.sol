@@ -79,6 +79,34 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(alignmentVault.view_vaultId() == 392); // NFTX Milady Vault ID
     }
 
+    function testCheckBalanceNFT() public {
+        hevm.startPrank(nft.ownerOf(420));
+        nft.approve(address(this), 420);
+        nft.transferFrom(nft.ownerOf(420), address(alignmentVault), 420);
+        hevm.stopPrank();
+        require(alignmentVault.checkBalanceNFT() == 1);
+    }
+    function testCheckBalanceETH() public {
+        (bool success, ) = payable(address(alignmentVault)).call{ value: 69 ether }("");
+        require(success);
+        require(alignmentVault.checkBalanceETH() == 69 ether);
+    }
+    function testCheckBalanceWETH() public {
+        bool success = wethToken.transfer(address(alignmentVault), 69 ether);
+        require(success);
+        require(alignmentVault.checkBalanceWETH() == 69 ether);
+    }
+    // TODO: Finish NFTX inventory unstaking
+    // function testCheckBalanceNFTXInventory() public { }
+    function testCheckBalanceNFTXLiquidity() public {
+        (bool success, ) = payable(address(alignmentVault)).call{ value: 25 ether }("");
+        require(success);
+        success = wethToken.transfer(address(alignmentVault), 52 ether);
+        require(success);
+        uint256 liquidity = alignmentVault.deepenLiquidity(25 ether, 52 ether, 0);
+        require(alignmentVault.checkBalanceNFTXLiquidity() == liquidity);
+    }
+
     function test_sortTokens(address _tokenA, address _tokenB) public {
         hevm.assume(_tokenA != _tokenB);
         hevm.assume(_tokenA != address(0));
@@ -117,6 +145,11 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
 
     function test_estimateFloor() public view {
         require(alignmentVault.call_estimateFloor() > 0);
+    }
+    function test_estimateFloorReversedValues() public {
+        address sproto = 0xEeca64ea9fCf99A22806Cd99b3d29cf6e8D54925;
+        TestingAlignmentVault vaultBelowWeth = new TestingAlignmentVault(address(sproto));
+        require(vaultBelowWeth.call_estimateFloor() > 0);
     }
     
     function test_wrap(uint256 _amount) public {

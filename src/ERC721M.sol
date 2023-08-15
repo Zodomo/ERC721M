@@ -24,7 +24,6 @@ contract ERC721M is AlignedNFT {
     error DiscountExceeded();
     error MintBurnDisabled();
     error TokenNotLockable();
-    error ArrayLengthMismatch();
     error InsufficientPayment();
     error CollectionZeroBalance();
     error NotEnoughTokensLocked();

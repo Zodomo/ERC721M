@@ -61,16 +61,6 @@ contract AlignedNFTTest is DSTestPlus, ERC721Holder  {
         require(_tokenId == tokenId);
     }
 
-    function testVaultBalance(uint256 _amount, uint256 _payment) public {
-        hevm.assume(_amount != 0);
-        hevm.assume(_amount <= 10000);
-        hevm.assume(_payment > 1 gwei);
-        hevm.assume(_payment < 0.01 ether);
-        alignedNFT_LA.execute_mint{ value: _payment }(address(this), _amount);
-        uint256 total = FixedPointMathLib.fullMulDivUp(_payment, 1500, 10000);
-        require(alignedNFT_LA.vaultBalance() == total);
-    }
-
     function test_changeFundsRecipient(address _to) public {
         hevm.assume(_to != address(0));
         alignedNFT_LA.execute_changeFundsRecipient(_to);
@@ -97,7 +87,7 @@ contract AlignedNFTTest is DSTestPlus, ERC721Holder  {
         hevm.assume(_payment < 0.01 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
         uint256 allocation = FixedPointMathLib.fullMulDivUp(4200, _payment, 10000);
-        require(alignedNFT_HA.vaultBalance() == allocation);
+        require(address(alignedNFT_HA.vault()).balance == allocation);
     }
     function test_mint_teamAllocation(uint256 _amount, uint256 _payment) public {
         hevm.assume(_amount != 0);

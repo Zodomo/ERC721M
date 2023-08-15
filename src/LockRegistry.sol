@@ -8,20 +8,26 @@ import "./IERC721x.sol";
 
 abstract contract LockRegistry is Ownable, IERC721x {
 
+	error ArrayLengthMismatch();
+	error LockerStillApproved();
+	error NotApprovedLocker();
+	error TokenNotLocked();
+	error AlreadyLocked();
+
+	event TokenLocked(uint256 indexed tokenId, address indexed approvedContract);
+	event TokenUnlocked(uint256 indexed tokenId, address indexed approvedContract);
+
     mapping(address => bool) public override approvedContract;
 	mapping(uint256 => uint256) public override lockCount;
 	mapping(uint256 => mapping(uint256 => address)) public override lockMap;
 	mapping(uint256 => mapping(address => uint256)) public override lockMapIndex;
-
-	event TokenLocked(uint256 indexed tokenId, address indexed approvedContract);
-	event TokenUnlocked(uint256 indexed tokenId, address indexed approvedContract);
 
 	function isUnlocked(uint256 _id) public view override returns(bool) {
 		return lockCount[_id] == 0;
 	}
 
 	function updateApprovedContracts(address[] calldata _contracts, bool[] calldata _values) external onlyOwner {
-		require(_contracts.length == _values.length, "!length");
+		if (_contracts.length != _values.length) { revert ArrayLengthMismatch(); }
 		for (uint256 i = 0; i < _contracts.length;) {
 			approvedContract[_contracts[i]] = _values[i];
 			unchecked {
@@ -31,8 +37,8 @@ abstract contract LockRegistry is Ownable, IERC721x {
 	}
 
 	function _lockId(uint256 _id) internal {
-		require(approvedContract[msg.sender], "Cannot update map");
-		require(lockMapIndex[_id][msg.sender] == 0, "ID already locked by caller");
+		if (!approvedContract[msg.sender]) { revert NotApprovedLocker(); }
+		if (lockMapIndex[_id][msg.sender] != 0) { revert AlreadyLocked(); }
 
 		unchecked {
 			uint256 count = lockCount[_id] + 1;
@@ -45,9 +51,9 @@ abstract contract LockRegistry is Ownable, IERC721x {
 	}
 
 	function _unlockId(uint256 _id) internal {
-		require(approvedContract[msg.sender], "Cannot update map");
+		if (!approvedContract[msg.sender]) { revert NotApprovedLocker(); }
 		uint256 index = lockMapIndex[_id][msg.sender];
-		require(index != 0, "ID not locked by caller");
+		if (index == 0) { revert TokenNotLocked(); }
 		
 		uint256 last = lockCount[_id];
 		if (index != last) {
@@ -68,9 +74,9 @@ abstract contract LockRegistry is Ownable, IERC721x {
 	}
 
 	function _freeId(uint256 _id, address _contract) internal {
-		require(!approvedContract[_contract], "Cannot update map");
+		if (approvedContract[msg.sender]) { revert LockerStillApproved(); }
 		uint256 index = lockMapIndex[_id][_contract];
-		require(index != 0, "ID not locked");
+		if (index == 0) { revert TokenNotLocked(); }
 
 		uint256 last = lockCount[_id];
 		if (index != last) {

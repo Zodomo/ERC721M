@@ -56,9 +56,6 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
         return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    // View AlignmentVault balance
-    function vaultBalance() public view returns (uint256) { return (address(vault).balance); }
-
     // Configure royalty receiver and royalty fee
     function configureRoyalties(address _recipient, uint96 _royaltyFee) public onlyOwner {
         // Revert if royalties are disabled
