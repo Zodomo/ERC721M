@@ -17,16 +17,31 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     using LibString for uint256;
 
     event CollectionDiscount(
-        address indexed collection,
+        address indexed asset,
         uint256 indexed discount,
         uint256 indexed requiredBal,
         uint256 quantity
     );
-    event DiscountDeleted(address indexed collection);
+    event DiscountDeleted(address indexed asset);
     event DiscountOverwritten(
-        address indexed collection,
+        address indexed asset,
         uint256 indexed discount,
         uint256 indexed requiredBal,
+        uint256 remainingQty
+    );
+    event MintLockDiscount(
+        address indexed token,
+        uint256 indexed discount,
+        uint256 indexed amount,
+        uint256 timestamp,
+        uint256 quantity
+    );
+    event MintLockDiscountDeleted(address indexed token);
+    event MintLockDiscountOverwritten(
+        address indexed token,
+        uint256 indexed discount,
+        uint256 indexed amount,
+        uint256 timestamp,
         uint256 remainingQty
     );
 
@@ -350,7 +365,115 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     }
 
     function testConfigureMintLockTokens() public {
-        
+        address[] memory tokens = new address[](1);
+        uint256[] memory discounts = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory timestamps = new uint256[](1);
+        uint256[] memory quantity = new uint256[](1);
+        tokens[0] = address(testToken);
+        discounts[0] = 0.0042 ether;
+        amounts[0] = 1 ether;
+        timestamps[0] = block.timestamp + 1000;
+        quantity[0] = 10;
+
+        hevm.expectEmit(true, true, true, true);
+        emit MintLockDiscount(address(testToken), 0.0042 ether, 1 ether, block.timestamp + 1000, 10);
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+    }
+    function testConfigureMintLockTokensMultiple() public {
+        address[] memory tokens = new address[](2);
+        uint256[] memory discounts = new uint256[](2);
+        uint256[] memory amounts = new uint256[](2);
+        uint256[] memory timestamps = new uint256[](2);
+        uint256[] memory quantity = new uint256[](2);
+        tokens[0] = address(testToken);
+        tokens[1] = address(42069);
+        discounts[0] = 0.0042 ether;
+        discounts[1] = 0.0069 ether;
+        amounts[0] = 1 ether;
+        amounts[1] = 2 ether;
+        timestamps[0] = block.timestamp + 1000;
+        timestamps[1] = block.timestamp + 2000;
+        quantity[0] = 10;
+        quantity[1] = 20;
+
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+        require(template.lockableTokens(tokens[1], 0) == 0.0069 ether);
+        require(template.lockableTokens(tokens[1], 1) == 2 ether);
+        require(template.lockableTokens(tokens[1], 2) == block.timestamp + 2000);
+        require(template.lockableTokens(tokens[1], 3) == 20);
+    }
+    function testConfigureMintLockTokensEraseDiscount() public {
+        address[] memory tokens = new address[](1);
+        uint256[] memory discounts = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory timestamps = new uint256[](1);
+        uint256[] memory quantity = new uint256[](1);
+        tokens[0] = address(testToken);
+        discounts[0] = 0.0042 ether;
+        amounts[0] = 1 ether;
+        timestamps[0] = block.timestamp + 1000;
+        quantity[0] = 10;
+
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+        quantity[0] = 0;
+        hevm.expectEmit(true, true, true, true);
+        emit MintLockDiscountDeleted(tokens[0]);
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+    }
+    function testConfigureMintLockTokensOverwriteDiscount() public {
+        address[] memory tokens = new address[](1);
+        uint256[] memory discounts = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory timestamps = new uint256[](1);
+        uint256[] memory quantity = new uint256[](1);
+        tokens[0] = address(testToken);
+        discounts[0] = 0.0042 ether;
+        amounts[0] = 1 ether;
+        timestamps[0] = block.timestamp + 1000;
+        quantity[0] = 10;
+
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+        discounts[0] = 1 ether;
+        amounts[0] = 2 ether;
+        timestamps[0] = block.timestamp + 100000;
+        quantity[0] = 20;
+        hevm.expectEmit(true, true, true, true);
+        emit MintLockDiscountOverwritten(address(testToken), 0.0042 ether, 1 ether, block.timestamp + 1000, 10);
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+    }
+    function testConfigureMintLockTokens_ArrayLengthMismatch() public {
+        address[] memory tokens = new address[](1);
+        uint256[] memory discounts = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory timestamps = new uint256[](2);
+        uint256[] memory quantity = new uint256[](1);
+        tokens[0] = address(testToken);
+        discounts[0] = 0.0042 ether;
+        amounts[0] = 1 ether;
+        timestamps[0] = block.timestamp + 1000;
+        timestamps[1] = 42069;
+        quantity[0] = 10;
+        hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+    }
+
+    function testMintLockTokens() public {
+        address[] memory tokens = new address[](1);
+        uint256[] memory discounts = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory timestamps = new uint256[](1);
+        uint256[] memory quantity = new uint256[](1);
+        tokens[0] = address(testToken);
+        discounts[0] = 0.0042 ether;
+        amounts[0] = 1 ether;
+        timestamps[0] = block.timestamp + 1000;
+        quantity[0] = 10;
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+        template.openMint();
+        testToken.approve(address(template), type(uint256).max);
+        template.mintLockTokens{ value: 0.0042 ether }(address(this), tokens, amounts);
+        require(template.balanceOf(address(this)) == 1);
     }
 
     function testWrap(uint256 _amount) public {
