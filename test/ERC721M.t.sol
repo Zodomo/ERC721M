@@ -475,6 +475,30 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.mintLockTokens{ value: 0.0042 ether }(address(this), tokens, amounts);
         require(template.balanceOf(address(this)) == 1);
     }
+    function testMintLockTokensMultiple() public {
+        address[] memory tokens = new address[](1);
+        uint256[] memory discounts = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory timestamps = new uint256[](1);
+        uint256[] memory quantity = new uint256[](1);
+        tokens[0] = address(testToken);
+        discounts[0] = 0.0042 ether;
+        amounts[0] = 1 ether;
+        timestamps[0] = block.timestamp + 1000;
+        quantity[0] = 10;
+        template.configureMintLockTokens(tokens, discounts, amounts, timestamps, quantity);
+        template.openMint();
+        testToken.approve(address(template), type(uint256).max);
+        template.mintLockTokens{ value: 0.0042 ether }(address(this), tokens, amounts);
+        template.mintLockTokens{ value: 0.0042 ether }(address(this), tokens, amounts);
+        require(template.balanceOf(address(this)) == 2);
+    }
+    function testMintLockTokens_MintClosed() public {
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        hevm.expectRevert(ERC721M.MintClosed.selector);
+        template.mintLockTokens(address(this), tokens, amounts);
+    }
 
     function testWrap(uint256 _amount) public {
         hevm.assume(_amount < 10 ether);

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "solady/auth/Ownable.sol";
 import "solady/utils/LibString.sol";
+import "solady/utils/SafeCastLib.sol";
 import "./AlignedNFT.sol";
 
 interface IERC721Burn {
@@ -12,42 +13,42 @@ interface IERC721Burn {
 contract ERC721M is AlignedNFT {
 
     using LibString for uint256;
+    using SafeCastLib for uint256;
+    using SafeCastLib for int256;
 
+    error Exceeded();
+    error NotActive();
     error NotMinted();
     error URILocked();
+    error Underflow();
     error MintClosed();
     error CapReached();
-    error NoDiscount();
     error LockedToken();
     error CapExceeded();
     error NoTokensLocked();
     error TokenNotBurned();
-    error DiscountExceeded();
     error MintBurnDisabled();
     error TokenNotLockable();
     error TokenNotUnlockable();
     error InsufficientPayment();
+    error InsufficientBalance();
     error NotEnoughTokensLocked();
     error NotBurnableCollection();
-    error InsufficientAssetBalance();
 
     event URILock();
     event URIChanged(string indexed baseUri);
     event PriceUpdated(uint256 indexed price);
     event TokensLocked(address indexed token, uint256 indexed amount);
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
-    event CollectionDiscount(
+    
+    event NormalMint(address indexed to, uint64 indexed amount);
+    event DiscountedMint(address indexed asset, address indexed to, uint64 indexed amount);
+    event ConfigureMintDiscount(
         address indexed asset,
-        uint256 indexed discount,
-        uint256 indexed requiredBal,
-        uint256 quantity
-    );
-    event DiscountDeleted(address indexed asset);
-    event DiscountOverwritten(
-        address indexed asset,
-        uint256 indexed discount,
-        uint256 indexed requiredBal,
-        uint256 remainingQty
+        bool indexed status,
+        int64 indexed allocation,
+        uint256 tokenBalance,
+        uint256 price
     );
     event MintLockDiscount(
         address indexed token,
@@ -65,6 +66,15 @@ contract ERC721M is AlignedNFT {
         uint256 remainingQty
     );
 
+    struct MintInfo {
+        int64 supply;
+        int64 allocated;
+        bool active;
+        uint40 timelock;
+        uint256 tokenBalance;
+        uint256 mintPrice;
+    }
+
     bool public uriLocked;
     bool public mintOpen;
     string private _name;
@@ -73,17 +83,12 @@ contract ERC721M is AlignedNFT {
     string private _contractURI;
     uint256 public immutable maxSupply;
     uint256 public price;
-    uint256 public burnsToMint;
-    // Asset address => [Discount Price, Required Balance, Quantity of Discounted Mints]
-    mapping(address => uint256[]) public collectionDiscount;
-    mapping(address => bool) public burnableCollections; // Collections that are eligible for burn to mint
-    mapping(address => uint256) public burnedTokens; // How many tokens an address has burned
-    // Token address => [Discount Price, Lock Quantity, Timelock Period, Number of Mints]
-    mapping(address => uint256[]) public lockableTokens;
-    // msg.sender => (token => [Lock Quantity, Unlock Timestamp])
-    mapping(address => mapping(address => uint256[])) public lockedTokens;
-    mapping(address => uint256[]) public mintableWithTokens; // Token => [Price, Number of Mints]
-    mapping(address => uint256[]) public mintableWithNFTs; // Token => [Price, Number of Mints]
+
+    mapping(address => MintInfo) public mintDiscountInfo;
+    mapping(address => MintInfo) public mintBurnInfo;
+    mapping(address => MintInfo) public mintLockTokensInfo;
+    mapping(address => MintInfo) public mintWithTokensInfo;
+    mapping(address => MintInfo) public mintWithNftsInfo;
 
     modifier mintable(uint256 _amount) {
         if (!mintOpen) { revert MintClosed(); }
@@ -167,79 +172,69 @@ contract ERC721M is AlignedNFT {
     }
 
     // Standard mint function that supports batch minting
-    function mint(address _to, uint256 _amount) public payable mintable(_amount) {
+    function mint(address _to, uint64 _amount) public payable mintable(_amount) {
         if (msg.value < (price * _amount)) { revert InsufficientPayment(); }
-        _mint(_to, _amount);
+        _mint(_to, uint256(_amount));
+        emit NormalMint(_to, _amount);
     }
 
-    // Discounted mint for owners of specific NFTs or tokens
-    function mintDiscount(address _asset, address _to, uint256 _amount) public payable mintable(_amount) {
-        // Check if discount is valid or exceeded
-        if (collectionDiscount[_asset].length == 0) {
-            revert NoDiscount();
-        } else {
-            uint256 discountQuantity = collectionDiscount[_asset][2];
-            if (discountQuantity == 0) { revert NoDiscount(); }
-            if (_amount > discountQuantity) { revert DiscountExceeded(); } // Also prevents underflow
-        }
-
-        // Check if msg.sender has enough tokens required for discount
-        if (IBalance(_asset).balanceOf(msg.sender) < collectionDiscount[_asset][1]) { revert InsufficientAssetBalance(); }
-        
-        // Check if payment is sufficient for discounted mint quantity
-        uint256 discountPrice = collectionDiscount[_asset][0];
-        if (discountPrice > 0 && msg.value < (discountPrice * _amount)) { revert InsufficientPayment(); }
-
-        // Deduct mints from discount allocation
-        unchecked { collectionDiscount[_asset][2] -= _amount; } // Cannot underflow as it is checked for prior
-        _mint(_to, _amount);
+    // Discounted mint for owners of specific ERC20/721 tokens
+    function mintDiscount(address _asset, address _to, uint64 _amount) public payable mintable(_amount) {
+        MintInfo memory info = mintDiscountInfo[_asset];
+        // Check if discount is active
+        if (!info.active) { revert NotActive(); }
+        // Determine if amount exceeds supply
+        int64 amount = (uint256(_amount).toInt256()).toInt64();
+        if (amount > info.supply) { revert Exceeded(); }
+        // Ensure holder balance of asset is sufficient
+        if (IBalance(_asset).balanceOf(msg.sender) < info.tokenBalance) { revert InsufficientBalance(); }
+        if (_amount * info.mintPrice > msg.value) { revert InsufficientPayment(); }
+        // Update MintInfo
+        unchecked { info.supply -= amount; }
+        if (info.supply == 0) { info.active = false; }
+        mintDiscountInfo[_asset] = info;
+        // Process mint
+        _mint(_to, uint256(_amount));
+        emit DiscountedMint(_asset, _to, _amount);
     }
+
     // Configure asset ownership-based discounted mints, bulk compatible
     // Each individual collection must have a corresponding discount price and total discounted mint quantity
     function configureMintDiscount(
-        address[] memory _asset,
-        uint256[] memory _price,
-        uint256[] memory _required,
-        uint256[] memory _quantity
+        address[] memory _assets,
+        bool[] memory _status,
+        int64[] memory _allocations,
+        uint256[] memory _tokenBalances,
+        uint256[] memory _prices
     ) public virtual onlyOwner {
         // Confirm all arrays match in length to ensure each collection has proper values set
-        uint256 length = _asset.length;
-        if (length != _price.length || 
-            length != _quantity.length || 
-            length != _required.length) { revert ArrayLengthMismatch(); }
+        uint256 length = _assets.length;
+        if (
+            length != _status.length
+            || length != _allocations.length
+            || length != _tokenBalances.length
+            || length != _prices.length
+        ) { revert ArrayLengthMismatch(); }
 
-        uint256[] memory discount = new uint256[](3);
         // Loop through and configure each corresponding discount
         for (uint256 i; i < length;) {
-            // If a discount array exists, check if it is active
-            if (collectionDiscount[_asset[i]].length > 0) {
-                uint256 remainingQty = collectionDiscount[_asset[i]][2];
-                // Log if existing discount is being overwritten
-                if (remainingQty > 0) {
-                    emit DiscountOverwritten(
-                        _asset[i],
-                        collectionDiscount[_asset[i]][0],
-                        collectionDiscount[_asset[i]][1],
-                        remainingQty
-                    );
-                }
+            // Retrieve current mint info, if any
+            MintInfo memory info = mintDiscountInfo[_assets[i]];
+            info.active = _status[i];
+            // Ensure supply or allocation cant underflow if theyre being reduced
+            if (info.supply + _allocations[i] < 0 || info.allocated + _allocations[i] < 0) { 
+                revert Underflow();
             }
-            // Store new discount, if _quantity is zero, discount is deleted
-            if (_quantity[i] == 0) {
-                delete collectionDiscount[_asset[i]];
-                emit DiscountDeleted(_asset[i]);
-            } else {
-                discount[0] = _price[i];
-                discount[1] = _required[i];
-                discount[2] = _quantity[i];
-                collectionDiscount[_asset[i]] = discount;
-                emit CollectionDiscount(
-                    _asset[i],
-                    _price[i],
-                    _required[i],
-                    _quantity[i]
-                );
+            unchecked {
+                info.supply += _allocations[i];
+                info.allocated += _allocations[i];
             }
+            // Enforced disable if adjustment eliminates mint availability
+            if (info.supply == 0 || info.allocated == 0) { info.active = false; }
+            info.tokenBalance = _tokenBalances[i];
+            info.mintPrice = _prices[i];
+            mintDiscountInfo[_assets[i]] = info;
+            emit ConfigureMintDiscount(_assets[i], _status[i], _allocations[i], _tokenBalances[i], _prices[i]);
             unchecked { ++i; }
         }
     }
