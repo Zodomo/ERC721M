@@ -8,8 +8,11 @@ import "./ERC721x.sol";
 import "./ERC2981.sol";
 import "./AlignmentVault.sol";
 
-interface IBalance {
+interface IAsset {
+    function burn(uint256 tokens) external;
     function balanceOf(address holder) external returns (uint256);
+    function transferFrom(address from, address to, uint256 tokens) external;
+    function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
 abstract contract AlignedNFT is ERC721x, ERC2981 {
@@ -104,13 +107,13 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
         uint256 count;
         if (_minter == _recipient) {
             for (uint256 i; i < blacklistedAssets.length;) {
-                count += IBalance(blacklistedAssets[i]).balanceOf(_minter);
+                count += IAsset(blacklistedAssets[i]).balanceOf(_minter);
                 unchecked { ++i; }
             }
         } else {
             for (uint256 i; i < blacklistedAssets.length;) {
-                count += IBalance(blacklistedAssets[i]).balanceOf(_minter);
-                count += IBalance(blacklistedAssets[i]).balanceOf(_recipient);
+                count += IAsset(blacklistedAssets[i]).balanceOf(_minter);
+                count += IAsset(blacklistedAssets[i]).balanceOf(_recipient);
                 unchecked { ++i; }
             }
         }
