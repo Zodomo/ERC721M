@@ -304,17 +304,22 @@ contract ERC721M is AlignedNFT {
                 unchecked { ++j; }
             }
 
-            uint256 burnMints = burntAmount / mintInfo.tokenBalance;
-            burntAmount -= mintNum * mintInfo.tokenBalance;
+            uint256 burnMints;
+            unchecked {
+                burnMints = burntAmount / mintInfo.tokenBalance;
+                burntAmount -= mintNum * mintInfo.tokenBalance;
+            }
             burnerInfo[msg.sender][asset].amount = burntAmount;
 
-            mintInfo.supply -= burnMints.toInt256().toInt64();
+            unchecked { mintInfo.supply -= burnMints.toInt256().toInt64(); }
             if (mintInfo.supply == 0) { mintInfo.active = false; }
             mintBurnInfo[asset] = mintInfo;
 
-            mintNum += burnMints;
-            requiredPayment += burnMints * mintInfo.mintPrice; 
-            unchecked { ++i; }
+            unchecked {
+                mintNum += burnMints;
+                requiredPayment += burnMints * mintInfo.mintPrice; 
+                ++i;
+            }
         }
 
         if ((mintNum + totalSupply) > maxSupply) { revert CapExceeded(); }
