@@ -25,12 +25,12 @@ contract ERC721M is AlignedNFT {
     error CapExceeded();
     error NoTokensLocked();
     error TokenNotBurned();
+    error InsufficientLock();
     error MintBurnDisabled();
     error TokenNotLockable();
     error TokenNotUnlockable();
     error InsufficientPayment();
     error InsufficientBalance();
-    error NotEnoughTokensLocked();
 
     event URILock();
     event URIChanged(string indexed baseUri);
@@ -63,6 +63,11 @@ contract ERC721M is AlignedNFT {
         uint256 tokenBalance;
         uint256 mintPrice;
     }
+    struct MinterInfo {
+        uint256 amount;
+        uint256[] amounts;
+        uint40[] timelocks;
+    }
 
     bool public uriLocked;
     bool public mintOpen;
@@ -78,8 +83,8 @@ contract ERC721M is AlignedNFT {
     mapping(address => MintInfo) public mintLockTokensInfo;
     mapping(address => MintInfo) public mintWithTokensInfo;
     mapping(address => MintInfo) public mintWithNftsInfo;
-    mapping(address => mapping(address => MintInfo)) public burnerInfo;
-    mapping(address => mapping(address => MintInfo)) public lockerInfo;
+    mapping(address => mapping(address => MinterInfo)) public burnerInfo;
+    mapping(address => mapping(address => MinterInfo)) public lockerInfo;
 
     modifier mintable(uint256 _amount) {
         if (!mintOpen) { revert MintClosed(); }
@@ -262,17 +267,17 @@ contract ERC721M is AlignedNFT {
             bool isERC721 = IAsset(asset).supportsInterface(0x80ac58cd);
             uint256 balance = IAsset(asset).balanceOf(msg.sender);
             MintInfo memory mintInfo = mintBurnInfo[asset];
-            MintInfo memory burnInfo = burnerInfo[msg.sender][asset];
+            uint256 burntAmount = burnerInfo[msg.sender][asset].amount;
 
             if (_burns[i].length > 1 && !isERC721) { revert NotERC721(); }
             if (!mintInfo.active || mintInfo.supply == 0) { revert NotActive(); }
             
             if (isERC721) {
-                if ((burnInfo.tokenBalance + _burns[i].length) / mintInfo.tokenBalance > uint256(int256(mintInfo.supply))) {
+                if ((burntAmount + _burns[i].length) / mintInfo.tokenBalance > uint256(int256(mintInfo.supply))) {
                     revert Exceeded();
                 }
             } else {
-                if ((burnInfo.tokenBalance + _burns[i][0]) / mintInfo.tokenBalance > uint256(int256(mintInfo.supply))) {
+                if ((burntAmount + _burns[i][0]) / mintInfo.tokenBalance > uint256(int256(mintInfo.supply))) {
                     revert Exceeded();
                 }
             }
@@ -284,21 +289,24 @@ contract ERC721M is AlignedNFT {
                 if (isERC721) {
                     if (balance - 1 != newBalance) { revert NotBurnable(); }
                     unchecked {
-                        ++burnInfo.tokenBalance;
+                        ++burntAmount;
+                        burnerInfo[msg.sender][asset].amounts.push(tokens);
                         --balance;
                     }
                 } else {
                     if (balance - tokens != newBalance) { revert NotBurnable(); }
                     unchecked {
-                        ++burnInfo.tokenBalance;
+                        ++burntAmount;
+                        burnerInfo[msg.sender][asset].amounts.push(tokens);
+                        // Balance reduction unneeded as ERC20s must be burned in one loop iteration
                     }
                 }
                 unchecked { ++j; }
             }
 
-            uint256 burnMints = burnInfo.tokenBalance / mintInfo.tokenBalance;
-            burnInfo.tokenBalance -= mintNum * mintInfo.tokenBalance;
-            burnerInfo[msg.sender][asset] = burnInfo;
+            uint256 burnMints = burntAmount / mintInfo.tokenBalance;
+            burntAmount -= mintNum * mintInfo.tokenBalance;
+            burnerInfo[msg.sender][asset].amount = burntAmount;
 
             mintInfo.supply -= burnMints.toInt256().toInt64();
             if (mintInfo.supply == 0) { mintInfo.active = false; }
@@ -310,7 +318,7 @@ contract ERC721M is AlignedNFT {
         }
 
         if ((mintNum + totalSupply) > maxSupply) { revert CapExceeded(); }
-        if (requiredPayment < msg.value) { revert InsufficientPayment(); }
+        if (msg.value < requiredPayment) { revert InsufficientPayment(); }
         _mint(_to, mintNum);
     }
     
@@ -353,80 +361,89 @@ contract ERC721M is AlignedNFT {
             unchecked { ++i; }
         }
     }
-/*
-    // Lock tokens to mint, timelock period is defined per token, token timelock will reset each time a respective token is locked
-    function mintLockTokens(
+    
+    // Lock ERC20/721 tokens to mint
+    function mintLock(
         address _to, 
-        address[] memory _tokens, 
-        uint256[] memory _amounts
+        address[] memory _assets, 
+        uint256[][] memory _locks
     ) public virtual payable {
-        // Mintable modifier checks
         if (!mintOpen) { revert MintClosed(); }
         if (totalSupply >= maxSupply) { revert CapReached(); }
-        // Require NFT collection and array of tokenId arrays be equal length
-        if (_tokens.length != _amounts.length) { revert ArrayLengthMismatch(); }
-        uint256 requiredPayment;
+        if (_assets.length != _locks.length) { revert ArrayLengthMismatch(); }
         uint256 mintNum;
+        uint256 requiredPayment;
 
-        for (uint256 i; i < _tokens.length;) {
-            // Retrieve token and amount for better code readability
-            address token = _tokens[i];
-            uint256 amount = _amounts[i];
-            uint256 discount = lockableTokens[token][0];
-            // Confirm token is lockable
-            uint256 requiredAmount = lockableTokens[token][1];
-            if (requiredAmount == 0) { revert TokenNotLockable(); }
-            if (requiredAmount > amount) { revert NotEnoughTokensLocked(); }
-            if (discount > msg.value) { revert InsufficientPayment(); }
+        for (uint256 i; i < _assets.length;) {
+            address asset = _assets[i];
+            bool isERC721 = IAsset(asset).supportsInterface(0x80ac58cd);
+            MintInfo memory mintInfo = mintLockTokensInfo[asset];
 
-            // Determine how many mints can take place and exact number of required tokens
-            uint256 canMint = amount / requiredAmount;
-            uint256 requiredTokens = canMint * requiredAmount;
-            // Tally requiredPayment and mintNum for post-loop validation
-            requiredPayment += canMint * discount;
-            mintNum += canMint;
-            // Confirm mints are available and deduct canMint from mint allocation for locked token
-            if (canMint > lockableTokens[token][3]) { revert DiscountExceeded(); }
-            unchecked { lockableTokens[token][3] -= canMint; }
+            if (_locks[i].length > 1 && !isERC721) { revert NotERC721(); }
+            if (!mintInfo.active || mintInfo.supply == 0) { revert NotActive(); }
 
-            // Transfer tokens and confirm it actually occurred
-            uint256 balance = IERC20(token).balanceOf(address(this));
-            IERC20(token).transferFrom(msg.sender, address(this), requiredTokens);
-            if (balance >= IERC20(token).balanceOf(address(this))) { revert TransferFailed(); }
-
-            // Log token lock
-            uint256[] memory tokenLock = new uint256[](2);
-            if (lockedTokens[msg.sender][token].length == 0) {
-                tokenLock[0] = requiredTokens;
-                tokenLock[1] = block.timestamp + lockableTokens[token][2];
-                lockedTokens[msg.sender][token] = tokenLock;
+            if (isERC721) {
+                if (_locks[i].length / mintInfo.tokenBalance > uint256(int256(mintInfo.supply))) {
+                    revert Exceeded();
+                }
+                if (_locks[i].length / mintInfo.tokenBalance < 0) {
+                    revert InsufficientLock();
+                }
             } else {
-                lockedTokens[msg.sender][token][0] += amount;
-                // Reset token-specific timelock every mint
-                lockedTokens[msg.sender][token][1] = block.timestamp + lockableTokens[token][2];
+                if (_locks[i][0] / mintInfo.tokenBalance > uint256(int256(mintInfo.supply))) {
+                    revert Exceeded();
+                }
+                if (_locks[i][0] / mintInfo.tokenBalance < 0) {
+                    revert InsufficientLock();
+                }
             }
-            emit TokensLocked(token, amount);
 
-            // Log token lock under contract address to prevent rescue functions from withdrawing locked tokens
-            tokenLock[1] = 0;
-            if (lockedTokens[address(this)][token].length == 0) {
-                lockedTokens[address(this)][token] = tokenLock;
-            } else {
-                lockedTokens[address(this)][token][0] += amount;
+            uint256 balance = IAsset(asset).balanceOf(address(this));
+            uint256 iterations;
+            if (isERC721) { iterations = (_locks[i].length / mintInfo.tokenBalance) * mintInfo.tokenBalance; }
+            else { iterations = 1; }
+            for (uint256 j; j < iterations;) {
+                uint256 tokens = _locks[i][j];
+                if (!isERC721) {
+                    uint256 lock;
+                    unchecked { lock = (tokens / mintInfo.tokenBalance) * mintInfo.tokenBalance; }
+                    IAsset(asset).transferFrom(msg.sender, address(this), lock);
+                    lockerInfo[msg.sender][asset].amounts.push(lock);
+                    unchecked { lockerInfo[address(this)][asset].amount += lock; }
+                } else {
+                    IAsset(asset).transferFrom(msg.sender, address(this), tokens);
+                    lockerInfo[msg.sender][asset].amounts.push(tokens);
+                    unchecked { ++lockerInfo[address(this)][asset].amount; }
+                }
+                lockerInfo[msg.sender][asset].timelocks.push(mintInfo.timelock + uint40(block.timestamp));
+                
+                if (IAsset(asset).balanceOf(address(this)) <= balance) { revert TransferFailed(); }
+                if (isERC721) { unchecked { ++balance; } }
+                else { unchecked { balance += tokens; } }
+                unchecked { ++j; }
             }
+
+            uint256 lockMints;
+            if (isERC721) { unchecked { lockMints = iterations / mintInfo.tokenBalance; } }
+            else { unchecked { lockMints = _locks[i][0] / mintInfo.tokenBalance; } }
+            unchecked { mintNum += lockMints; }
+            unchecked { requiredPayment += lockMints * mintInfo.mintPrice; }
+
+            unchecked { mintInfo.supply -= lockMints.toInt256().toInt64(); }
+            if (mintInfo.supply == 0) { mintInfo.active = false; }
+            mintLockTokensInfo[asset] = mintInfo;
             unchecked { ++i; }
         }
 
-        // Require msg.value covers discount price of all locked token mints
+        if ((mintNum + totalSupply) > maxSupply) { revert CapExceeded(); }
         if (msg.value < requiredPayment) { revert InsufficientPayment(); }
-        // Prevent mint cap from being exceeded
-        if (totalSupply + mintNum > maxSupply) { revert CapExceeded(); }
-        // Mint proper amount
         _mint(_to, mintNum);
     }
+    
+    /*
     // Configure lock tokens to mint function by specifying token address, amounts, and timelock periods per token
     // Setting amount to zero will disable token as a lockable option
-    function configureMintLockTokens(
+    function configureMintLock(
         address[] memory _tokens, 
         uint256[] memory _discounts, // Discounted mint price
         uint256[] memory _amounts, // Required token lock amount
@@ -613,10 +630,12 @@ contract ERC721M is AlignedNFT {
     function stakeLiquidity() public virtual onlyOwner { vault.stakeLiquidity(); }
     function claimRewards(address _recipient) public virtual onlyOwner { vault.claimRewards(_recipient); }
     function compoundRewards(uint112 _eth, uint112 _weth) public virtual onlyOwner { vault.compoundRewards(_eth, _weth); }
+    // TODO: Fix this to not tamper with locked funds
     function rescueERC20(address _token, address _to) public virtual onlyOwner {
         //TODO: FIX if (lockedTokens[address(this)][_token].length != 0) { revert LockedToken(); }
         vault.rescueERC20(_token, _to);
     }
+    // TODO: Fix this to not tamper with locked funds
     function rescueERC721(
         address _address,
         address _to,
