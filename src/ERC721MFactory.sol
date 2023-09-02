@@ -6,6 +6,10 @@ import "solady/utils/SSTORE2.sol";
 
 contract ERC721MFactory {
 
+    error NotDeployed();
+    event Deployed(address indexed deployer, address indexed collection);
+    event OwnershipChanged(address indexed collection, address indexed owner);
+
     constructor() payable {}
 
     struct ConstructorArgs {
@@ -13,6 +17,7 @@ contract ERC721MFactory {
         uint16 royaltyFee;
         address alignedNFT;
         address fundsRecipient;
+        address owner;
         string name;
         string symbol;
         string baseURI;
@@ -21,8 +26,18 @@ contract ERC721MFactory {
         uint256 price;
     }
     mapping(address => ConstructorArgs) public contractArgs;
+    mapping(address => address) public contractDeployers;
 
     address public creationCode;
+
+    modifier onlyCollection(address _collection) {
+        if (contractDeployers[_collection] == address(0)) { revert NotDeployed(); }
+        _:
+    }
+
+    function ownershipUpdate(address _newOwner) external onlyCollection(msg.sender) {
+        emit OwnershipChanged(msg.sender, _newOwner);
+    }
 
     function writeCreationCode(bytes memory _creationCode) public {
         creationCode = SSTORE2.write(_creationCode);
@@ -34,6 +49,7 @@ contract ERC721MFactory {
         uint16 _royaltyFee, // Percentage in basis points (0 - 10000) for royalty fee
         address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
         address _fundsRecipient, // Recipient of non-aligned mint funds
+        address _owner, // Contract owner, manually specified for clarity
         string memory __name, // NFT collection name
         string memory __symbol, // NFT collection symbol/ticker
         string memory __baseURI, // Base URI for NFT metadata, preferably on IPFS
@@ -47,6 +63,7 @@ contract ERC721MFactory {
             _royaltyFee,
             _alignedNFT,
             _fundsRecipient,
+            _owner,
             __name,
             __symbol,
             __baseURI,
@@ -63,6 +80,7 @@ contract ERC721MFactory {
         args.royaltyFee = _royaltyFee;
         args.alignedNFT = _alignedNFT;
         args.fundsRecipient = _fundsRecipient;
+        args.owner = _owner;
         args.name = __name;
         args.symbol = __symbol;
         args.baseURI = __baseURI;
@@ -70,5 +88,7 @@ contract ERC721MFactory {
         args.maxSupply = _maxSupply;
         args.price = _price;
         contractArgs[addr] = args;
+        contractDeployers[addr] = msg.sender;
+        emit Deployed(msg.sender, addr);
     }
 }
