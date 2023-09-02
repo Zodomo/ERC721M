@@ -113,6 +113,7 @@ contract ERC721M is AlignedNFT {
         uint16 _royaltyFee, // Percentage of royalty fees in basis points (0 - 10000)
         address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
         address _fundsRecipient, // Recipient of non-aligned mint funds
+        address _owner, // Collection owner
         string memory __name, // NFT collection name
         string memory __symbol, // NFT collection symbol/ticker
         string memory __baseURI, // Base URI for NFT metadata, preferably on IPFS
@@ -135,15 +136,7 @@ contract ERC721M is AlignedNFT {
         maxSupply = _maxSupply;
         price = _price;
 
-        // Set ownership using msg.sender or tx.origin to support factory deployment
-        // Determination is made by checking if msg.sender is a smart contract or not by checking code size
-        uint32 size;
-        address sender;
-        assembly { size:= extcodesize(sender) }
-        if (size > 0) { sender = tx.origin; }
-        else { sender = msg.sender; }
-        _initializeOwner(sender);
-
+        _initializeOwner(_owner);
         // Initialize royalties
         _setTokenRoyalty(0, sender, uint96(_royaltyFee));
         // Configure default royalties for contract owner
