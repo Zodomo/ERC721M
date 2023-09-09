@@ -32,7 +32,7 @@ contract ERC721MFactory {
 
     modifier onlyCollection(address _collection) {
         if (contractDeployers[_collection] == address(0)) { revert NotDeployed(); }
-        _:
+        _;
     }
 
     function ownershipUpdate(address _newOwner) external onlyCollection(msg.sender) {

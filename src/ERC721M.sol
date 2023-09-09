@@ -138,9 +138,9 @@ contract ERC721M is AlignedNFT {
 
         _initializeOwner(_owner);
         // Initialize royalties
-        _setTokenRoyalty(0, sender, uint96(_royaltyFee));
+        _setTokenRoyalty(0, _fundsRecipient, uint96(_royaltyFee));
         // Configure default royalties for contract owner
-        _setDefaultRoyalty(sender, uint96(_royaltyFee));
+        _setDefaultRoyalty(_fundsRecipient, uint96(_royaltyFee));
     }
 
 
