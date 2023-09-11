@@ -6,6 +6,13 @@ import "solady/utils/LibString.sol";
 import "solady/utils/SafeCastLib.sol";
 import "./AlignedNFT.sol";
 
+interface IFactory {
+    function ownershipUpdate(address _newOwner) external;
+}
+
+// This is a WIP contract
+// Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@pm.me
+// https://github.com/Zodomo/ERC721M
 contract ERC721M is AlignedNFT {
 
     using LibString for uint256;
@@ -85,6 +92,8 @@ contract ERC721M is AlignedNFT {
         uint40[] timelocks;
     }
 
+    // NOTE: Must set factory address if factory is to be notified of ownership changes
+    address public constant factory = address(0);
     bool public uriLocked;
     bool public mintOpen;
     string private _name;
@@ -173,6 +182,18 @@ contract ERC721M is AlignedNFT {
     function lockURI() public virtual onlyOwner {
         uriLocked = true;
         emit URILock();
+    }
+
+    // Ownership change overrides to callback into factory to notify frontend
+    function transferOwnership(address _newOwner) public payable override onlyOwner {
+        address _factory = factory;
+        if (_factory != address(0)) { IFactory(_factory).ownershipUpdate(_newOwner); }
+        super.transferOwnership(_newOwner);
+    }
+    function renounceOwnership() public payable override onlyOwner {
+        address _factory = factory;
+        if (_factory != address(0)) { IFactory(_factory).ownershipUpdate(address(0)); }
+        super.renounceOwnership();
     }
 
     // Standard mint function that supports batch minting

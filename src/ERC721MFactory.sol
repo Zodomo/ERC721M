@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "./ERC721M.sol";
+import "solady/auth/Ownable.sol";
 import "solady/utils/SSTORE2.sol";
+import "./ERC721M.sol";
 
-contract ERC721MFactory {
+// This is a WIP contract
+// Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@pm.me
+// https://github.com/Zodomo/ERC721M
+contract ERC721MFactory is Ownable {
 
     error NotDeployed();
     event Deployed(address indexed deployer, address indexed collection);
     event OwnershipChanged(address indexed collection, address indexed owner);
 
-    constructor() payable {}
+    constructor(address _owner) payable {
+        _initializeOwner(_owner);
+    }
 
     struct ConstructorArgs {
         uint16 allocation;
@@ -28,7 +34,7 @@ contract ERC721MFactory {
     mapping(address => ConstructorArgs) public contractArgs;
     mapping(address => address) public contractDeployers;
 
-    address public creationCode;
+    address[] public creationCode;
 
     modifier onlyCollection(address _collection) {
         if (contractDeployers[_collection] == address(0)) { revert NotDeployed(); }
@@ -39,8 +45,38 @@ contract ERC721MFactory {
         emit OwnershipChanged(msg.sender, _newOwner);
     }
 
-    function writeCreationCode(bytes memory _creationCode) public {
-        creationCode = SSTORE2.write(_creationCode);
+    function writeCreationCode(bytes calldata _creationCode) public {
+        uint256 maxBytes = 24576;
+        uint256 length = _creationCode.length;
+        uint256 segments = (length + maxBytes - 1) / maxBytes;
+        for (uint256 i; i < segments;) {
+            uint256 start = i * maxBytes;
+            uint256 end = (start + maxBytes > length) ? length : start + maxBytes;
+            creationCode.push(SSTORE2.write(_creationCode[start:end]));
+            unchecked { ++i; }
+        }
+    }
+    function getCreationCode() public view returns (bytes memory) {
+        bytes memory result;
+        uint256 length = creationCode.length;
+        address[] memory _creationCode = creationCode;
+        for (uint256 i; i < length;) {
+            result = _concatenate(result, SSTORE2.read(_creationCode[i]));
+            unchecked { ++i; }
+        }
+        return result;
+    }
+
+    function _concatenate(bytes memory _a, bytes memory _b) internal pure returns (bytes memory result) {
+        result = new bytes(_a.length + _b.length);
+        for (uint256 i; i < _a.length;) {
+            result[i] = _a[i];
+            unchecked { ++i; }
+        }
+        for (uint256 i; i < _b.length;) {
+            result[_a.length + i] = _b[i];
+            unchecked { ++i; }
+        }
     }
     
     // Deploy MiyaMints flavored ERC721M collection
@@ -57,8 +93,15 @@ contract ERC721MFactory {
         uint256 _maxSupply, // Max mint supply
         uint256 _price // Standard mint price
     ) public returns (address addr) {
+        // Retrieve creationCode using loop in case its above 24576 bytes
+        bytes memory _creationCode;
+        uint256 length = creationCode.length;
+        for (uint256 i; i < length;) {
+            _creationCode = _concatenate(_creationCode, SSTORE2.read(creationCode[i]));
+            unchecked { ++i; }
+        }
         // Encode creation code and constructor arguments
-        bytes memory bytecode = abi.encodePacked(SSTORE2.read(creationCode), abi.encode(
+        bytes memory bytecode = abi.encodePacked(_creationCode, abi.encode(
             _allocation,
             _royaltyFee,
             _alignedNFT,
