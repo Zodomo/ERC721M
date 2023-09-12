@@ -14,25 +14,33 @@ contract FactoryTest is DSTestPlus {
         factory = new ERC721MFactory(address(this));
     }
 
-    function _concatenate(bytes memory _a, bytes memory _b) internal pure returns (bytes memory result) {
-        result = new bytes(_a.length + _b.length);
-        for (uint256 i; i < _a.length;) {
-            result[i] = _a[i];
+    function getCreationCode() public returns (bytes[] memory) {
+        bytes memory _creationCode = hevm.getCode("ERC721M.sol:ERC721M");
+        uint256 length = (_creationCode.length + 24576 - 1) / 24576;
+        bytes[] memory creationCode = new bytes[](length);
+        for (uint256 i; i < length;) {
+            uint256 start = i * 24576;
+            uint256 end = (start + 24576 > _creationCode.length) ? _creationCode.length : start + 24576;
+            bytes memory segment = new bytes(end - start);
+            for (uint256 j; j < end - start;) {
+                segment[j] = _creationCode[start + j];
+                unchecked { ++j; }
+            }
+            creationCode[i] = segment;
             unchecked { ++i; }
         }
-        for (uint256 i; i < _b.length;) {
-            result[_a.length + i] = _b[i];
-            unchecked { ++i; }
-        }
-    }
-
-    function getCreationCode() public returns (bytes memory) {
-        return hevm.getCode("ERC721M.sol:ERC721M");
+        return creationCode;
     }
 
     function testSaveCreationCode() public {
         factory.writeCreationCode(getCreationCode());
-        require(keccak256(abi.encode(getCreationCode())) == 
+        bytes[] memory array = getCreationCode();
+        bytes memory creationCode;
+        for (uint256 i; i < array.length;) {
+            creationCode = abi.encodePacked(creationCode, array[i]);
+            unchecked { ++i; }
+        }
+        require(keccak256(abi.encode(creationCode)) == 
             keccak256(abi.encode(factory.getCreationCode())), "creationCode mismatch");
     }
 }

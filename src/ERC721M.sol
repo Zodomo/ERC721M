@@ -11,7 +11,7 @@ interface IFactory {
 }
 
 // This is a WIP contract
-// Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@pm.me
+// Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@proton.me
 // https://github.com/Zodomo/ERC721M
 contract ERC721M is AlignedNFT {
 
