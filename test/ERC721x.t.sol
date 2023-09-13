@@ -18,7 +18,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             500,
             address(nft),
             address(42),
-            msg.sender,
+            address(this),
             "ERC721M Test",
             "ERC721M",
             "https://miya.wtf/api/",
