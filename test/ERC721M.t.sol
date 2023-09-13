@@ -78,7 +78,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(keccak256(abi.encodePacked(template.symbol())) == keccak256(abi.encodePacked("ERC721M")));
     }
     function testBaseUri() public view {
-        require(keccak256(abi.encodePacked(template.baseUri())) == keccak256(abi.encodePacked("https://miya.wtf/api/")));
+        require(keccak256(abi.encodePacked(template.baseURI())) == keccak256(abi.encodePacked("https://miya.wtf/api/")));
     }
     function testContractURI() public view {
         require(keccak256(abi.encodePacked(template.contractURI())) == keccak256(abi.encodePacked("https://miya.wtf/contract.json")));
@@ -113,7 +113,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
 
     function testUpdateBaseURI() public {
         template.updateBaseURI("ipfs://miyahash/");
-        require(keccak256(abi.encodePacked(template.baseUri())) == keccak256(abi.encodePacked("ipfs://miyahash/")));
+        require(keccak256(abi.encodePacked(template.baseURI())) == keccak256(abi.encodePacked("ipfs://miyahash/")));
     }
     function testUpdateBaseURI_URILocked() public {
         template.lockURI();

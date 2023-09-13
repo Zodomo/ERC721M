@@ -40,7 +40,7 @@ contract ERC721M is AlignedNFT {
     error InsufficientBalance();
 
     event URILock();
-    event URIChanged(string indexed baseUri);
+    event URIChanged(string indexed baseURI);
     event PriceUpdated(uint256 indexed price);
     event TokensLocked(address indexed token, uint256 indexed amount);
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
@@ -156,11 +156,11 @@ contract ERC721M is AlignedNFT {
     // ERC721 Metadata
     function name() public view virtual override returns (string memory) { return (_name); }
     function symbol() public view virtual override returns (string memory) { return (_symbol); }
-    function baseUri() public view virtual returns (string memory) { return (_baseURI); }
+    function baseURI() public view virtual returns (string memory) { return (_baseURI); }
     function contractURI() public view virtual returns (string memory) { return (_contractURI); }
     function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         if (!_exists(_tokenId)) { revert NotMinted(); } // Require token exists
-        string memory __baseURI = baseUri();
+        string memory __baseURI = baseURI();
 
         return (bytes(__baseURI).length > 0 ? string(abi.encodePacked(__baseURI, _tokenId.toString())) : "");
     }

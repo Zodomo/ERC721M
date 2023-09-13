@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "solady/auth/Ownable.sol";
-import "./ERC721M.sol";
+import "solady/utils/SSTORE2.sol";
 
 // This is a WIP contract
 // Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@proton.me
@@ -33,6 +33,8 @@ contract ERC721MFactory is Ownable {
     mapping(address => ConstructorArgs) public contractArgs;
     mapping(address => address) public contractDeployers;
 
+    address[] public creationCode;
+
     modifier onlyCollection(address _collection) {
         if (contractDeployers[_collection] == address(0)) { revert NotDeployed(); }
         _;
@@ -42,6 +44,24 @@ contract ERC721MFactory is Ownable {
         emit OwnershipChanged(msg.sender, _newOwner);
     }
 
+    function writeCreationCode(bytes[] calldata _creationCode) public {
+        delete creationCode;
+        for (uint256 i; i < _creationCode.length;) {
+            creationCode.push(SSTORE2.write(_creationCode[i]));
+            unchecked { ++i; }
+        }
+    }
+    function getCreationCode() public view returns (bytes memory) {
+        bytes memory result;
+        address[] memory _creationCode = creationCode;
+        uint256 length = _creationCode.length;
+        for (uint256 i; i < length;) {
+            result = abi.encodePacked(result, SSTORE2.read(_creationCode[i]));
+            unchecked { ++i; }
+        }
+        return result;
+    }
+    
     // Deploy MiyaMints flavored ERC721M collection
     function deploy(
         uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
@@ -56,7 +76,8 @@ contract ERC721MFactory is Ownable {
         uint256 _maxSupply, // Max mint supply
         uint256 _price // Standard mint price
     ) public returns (address addr) {
-        ERC721M deployment = new ERC721M(
+        // Encode creation code and constructor arguments
+        bytes memory bytecode = abi.encodePacked(getCreationCode(), abi.encode(
             _allocation,
             _royaltyFee,
             _alignedNFT,
@@ -68,10 +89,11 @@ contract ERC721MFactory is Ownable {
             __contractURI,
             _maxSupply,
             _price
-        );
-        if (address(deployment) == address(0)) { revert NotDeployed(); }
-        contractDeployers[address(deployment)] = msg.sender;
+        ));
 
+        // Deploy contract
+        assembly { addr := create(callvalue(), add(bytecode, 0x20), mload(bytecode)) }
+        
         ConstructorArgs memory args;
         args.allocation = _allocation;
         args.royaltyFee = _royaltyFee;
@@ -84,9 +106,8 @@ contract ERC721MFactory is Ownable {
         args.contractURI = __contractURI;
         args.maxSupply = _maxSupply;
         args.price = _price;
-        contractArgs[address(deployment)] = args;
-        
-        emit Deployed(msg.sender, address(deployment));
-        return address(deployment);
+        contractArgs[addr] = args;
+        contractDeployers[addr] = msg.sender;
+        emit Deployed(msg.sender, addr);
     }
 }
