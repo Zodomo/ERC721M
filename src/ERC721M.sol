@@ -278,7 +278,9 @@ contract ERC721M is AlignedNFT {
             }
         }
         uint256 newBalance = IAsset(_asset).balanceOf(msg.sender);
-        if (IAsset(_asset).supportsInterface(0x80ac58cd)) {
+        bool isERC721;
+        try IAsset(_asset).supportsInterface(0x80ac58cd) returns (bool _isERC721) { isERC721 = _isERC721; } catch {}
+        if (isERC721) {
             if (balance - 1 != newBalance) { revert NotBurnable(); }
         } else {
             if (balance - _tokens != newBalance) { revert NotBurnable(); }
@@ -299,7 +301,8 @@ contract ERC721M is AlignedNFT {
 
         for (uint256 i; i < _assets.length;) {
             address asset = _assets[i];
-            bool isERC721 = IAsset(asset).supportsInterface(0x80ac58cd);
+            bool isERC721;
+            try IAsset(asset).supportsInterface(0x80ac58cd) returns (bool _isERC721) { isERC721 = _isERC721; } catch {}
             uint256 balance = IAsset(asset).balanceOf(msg.sender);
             MintInfo memory mintInfo = mintBurnInfo[asset];
             uint256 burntAmount = burnerInfo[msg.sender][asset].amount;
@@ -328,7 +331,7 @@ contract ERC721M is AlignedNFT {
                     }
                 } else {
                     burnerInfo[msg.sender][asset].amounts.push(tokens);
-                    unchecked { ++burntAmount; } 
+                    unchecked { burntAmount += tokens; } 
                     // Balance reduction unneeded as ERC20s must be burned in one loop iteration
                 }
                 unchecked { ++j; }
@@ -337,12 +340,12 @@ contract ERC721M is AlignedNFT {
             uint256 burnMints;
             unchecked {
                 burnMints = burntAmount / mintInfo.tokenBalance;
-                burntAmount -= mintNum * mintInfo.tokenBalance;
+                burntAmount -= burnMints * mintInfo.tokenBalance;
             }
             burnerInfo[msg.sender][asset].amount = burntAmount;
 
             unchecked { mintInfo.supply -= burnMints.toInt256().toInt64(); }
-            if (mintInfo.supply == 0) { mintInfo.active = false; }
+            if (mintInfo.supply <= 0) { mintInfo.active = false; }
             mintBurnInfo[asset] = mintInfo;
 
             unchecked {
@@ -380,9 +383,7 @@ contract ERC721M is AlignedNFT {
             MintInfo memory info = mintBurnInfo[_assets[i]];
             info.active = _status[i];
             // Ensure supply or allocation cant underflow if theyre being reduced
-            if (info.supply + _allocations[i] < 0) { 
-                revert Underflow();
-            }
+            if (info.supply + _allocations[i] < 0) { revert Underflow(); }
             unchecked {
                 info.supply += _allocations[i];
                 info.allocated += _allocations[i];
@@ -391,7 +392,7 @@ contract ERC721M is AlignedNFT {
             if (info.supply <= 0 || info.allocated <= 0) { info.active = false; }
             info.tokenBalance = _tokenBalances[i];
             info.mintPrice = _prices[i];
-            mintDiscountInfo[_assets[i]] = info;
+            mintBurnInfo[_assets[i]] = info;
             emit ConfigureMintBurn(_assets[i], _status[i], _allocations[i], _tokenBalances[i], _prices[i]);
             unchecked { ++i; }
         }

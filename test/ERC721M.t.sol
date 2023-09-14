@@ -209,7 +209,55 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(template.ownerOf(1) == address(this), "owner/tokenId error");
         require(template.ownerOf(2) == address(this), "owner/tokenId error");
     }
-    
+
+    function configureMintBurn() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 5;
+        tokenBalances[0] = 1.5 ether;
+        prices[0] = 0.02 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintBurn() public {
+        configureMintBurn();
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintBurnInfo(address(testToken));
+        require(supply == 5, "supply error");
+        require(allocated == 5, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 1.5 ether, "tokenBalance error");
+        require(mintPrice == 0.02 ether, "mintPrice error");
+    }
+    function testMintBurn() public {
+        configureMintBurn();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 3 ether;
+        burns[0] = burn;
+        uint256 payment = 0.04 ether;
+        testToken.approve(address(template), type(uint256).max);
+        template.mintBurn{ value: payment }(to, assets, burns);
+        require(template.balanceOf(address(this)) == 2, "balance error");
+        require(template.ownerOf(1) == address(this), "owner/tokenId error");
+        require(template.ownerOf(2) == address(this), "owner/tokenId error");
+    }
+
     function testWrap(uint256 _amount) public {
         hevm.assume(_amount < 10 ether);
         (bool success, ) = payable(address(template.vault())).call{ value: _amount }("");
