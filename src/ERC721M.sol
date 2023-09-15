@@ -328,10 +328,14 @@ contract ERC721M is AlignedNFT {
                     unchecked {
                         ++burntAmount;
                         --balance;
+                        ++burnerInfo[address(this)][asset].amount;
                     }
                 } else {
                     burnerInfo[msg.sender][asset].amounts.push(tokens);
-                    unchecked { burntAmount += tokens; } 
+                    unchecked {
+                        burntAmount += tokens;
+                        burnerInfo[address(this)][asset].amount += tokens;
+                    } 
                     // Balance reduction unneeded as ERC20s must be burned in one loop iteration
                 }
                 unchecked { ++j; }
@@ -412,7 +416,8 @@ contract ERC721M is AlignedNFT {
 
         for (uint256 i; i < _assets.length;) {
             address asset = _assets[i];
-            bool isERC721 = IAsset(asset).supportsInterface(0x80ac58cd);
+            bool isERC721;
+            try IAsset(asset).supportsInterface(0x80ac58cd) returns (bool _isERC721) { isERC721 = _isERC721; } catch {}
             MintInfo memory mintInfo = mintLockInfo[asset];
 
             if (_locks[i].length != 1 && !isERC721) { revert NotERC721(); }
@@ -527,15 +532,18 @@ contract ERC721M is AlignedNFT {
     function unlockAssets(address _asset) public {
         MinterInfo memory info = lockerInfo[msg.sender][_asset];
         if (lockerInfo[address(this)][_asset].amount == 0 || info.amounts.length == 0) { revert NotLocked(); }
-        if (info.timelocks[0] < uint40(block.timestamp)) { revert NotUnlocked(); }
+        if (info.timelocks[0] > uint40(block.timestamp)) { revert NotUnlocked(); }
         uint256 unlocks;
         uint256 total;
+        bool isERC721;
+        try IAsset(_asset).supportsInterface(0x80ac58cd) returns (bool _isERC721) { isERC721 = _isERC721; } catch {}
         for (uint256 i; i < info.amounts.length;) {
             if (uint40(block.timestamp) < info.timelocks[i]) { break; }
             uint256 tokens = info.amounts[i];
+            IAsset(_asset).approve(address(this), tokens);
             IAsset(_asset).transferFrom(address(this), msg.sender, tokens);
             unchecked {
-                if (IAsset(_asset).supportsInterface(0x80ac58cd)) { --lockerInfo[address(this)][_asset].amount; }
+                if (isERC721) { --lockerInfo[address(this)][_asset].amount; }
                 else { lockerInfo[address(this)][_asset].amount -= tokens; }
                 ++unlocks;
                 total += tokens;
@@ -571,7 +579,8 @@ contract ERC721M is AlignedNFT {
         for (uint256 i; i < _assets.length;) {
             address asset = _assets[i];
             MintInfo memory info = mintWithAssetsInfo[asset];
-            bool isERC721 = IAsset(asset).supportsInterface(0x80ac58cd);
+            bool isERC721;
+            try IAsset(asset).supportsInterface(0x80ac58cd) returns (bool _isERC721) { isERC721 = _isERC721; } catch {}
             if (!info.active || info.supply == 0) { revert NotActive(); }
 
             uint256 canMint;
@@ -587,7 +596,7 @@ contract ERC721M is AlignedNFT {
             mintNum += canMint;
             requiredPayment += canMint * info.mintPrice;
 
-            uint256 balance = IAsset(asset).balanceOf(address(this));
+            uint256 balance = IAsset(asset).balanceOf(address(msg.sender));
             uint256 iterations;
             if (isERC721) { unchecked { iterations = canMint * info.tokenBalance; } }
             else { iterations = 1; }
@@ -596,8 +605,12 @@ contract ERC721M is AlignedNFT {
                 IAsset(asset).transferFrom(msg.sender, recipient, tokens);
                 unchecked { ++j; }
             }
-            if (isERC721 && IAsset(asset).balanceOf(address(this)) != balance - iterations) { revert TransferFailed(); }
-            if (!isERC721 && IAsset(asset).balanceOf(address(this)) != balance - _tokens[i][0]) { revert TransferFailed(); }
+            if (isERC721 && IAsset(asset).balanceOf(address(msg.sender)) != balance - iterations) { revert TransferFailed(); }
+            if (!isERC721 && IAsset(asset).balanceOf(address(msg.sender)) != balance - _tokens[i][0]) { revert TransferFailed(); }
+            
+            unchecked { info.supply -= canMint.toInt256().toInt64(); }
+            if (info.supply == 0) { info.active = false; }
+            mintWithAssetsInfo[asset] = info;
             unchecked { ++i; }
         }
 
@@ -625,9 +638,7 @@ contract ERC721M is AlignedNFT {
         for (uint256 i; i < length;) {
             MintInfo memory info = mintWithAssetsInfo[_assets[i]];
             info.active = _status[i];
-            if (info.supply + _allocations[i] < 0) { 
-                revert Underflow();
-            }
+            if (info.supply + _allocations[i] < 0) { revert Underflow(); }
             unchecked {
                 info.supply += _allocations[i];
                 info.allocated += _allocations[i];

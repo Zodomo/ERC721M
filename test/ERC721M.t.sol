@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
+import "forge-std/console.sol";
 import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
 import "../lib/solady/test/utils/mocks/MockERC20.sol";
 import "../lib/solady/test/utils/mocks/MockERC721.sol";
@@ -83,6 +84,8 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         testToken.mint(address(this), 100 ether);
         testNFT = new MockERC721();
         testNFT.safeMint(address(this), 1);
+        testNFT.safeMint(address(this), 2);
+        testNFT.safeMint(address(this), 3);
     }
 
     function testName() public view {
@@ -139,6 +142,12 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(template.uriLocked() == true);
     }
 
+    function testTransferOwnership(address _newOwner) public {
+        hevm.assume(_newOwner != address(0));
+        template.transferOwnership(_newOwner);
+        require(template.owner() == _newOwner, "ownership transfer error");
+    }
+
     function testMint(address _to, uint64 _amount) public {
         hevm.assume(_amount != 0);
         hevm.assume(_amount <= 100);
@@ -167,7 +176,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.mint{ value: 0.01 ether * 101 }(address(this), 101);
     }
 
-    function configureMintDiscount() public {
+    function configureMintDiscountERC20() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
         int64[] memory allocations = new int64[](1);
@@ -180,8 +189,21 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         prices[0] = 0.025 ether;
         template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
     }
-    function testConfigureMintDiscount() public {
-        configureMintDiscount();
+    function configureMintDiscountERC721() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testNFT);
+        status[0] = true;
+        allocations[0] = 10;
+        tokenBalances[0] = 2;
+        prices[0] = 0.025 ether;
+        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintDiscountERC20() public {
+        configureMintDiscountERC20();
         (
             int64 supply,
             int64 allocated,
@@ -197,8 +219,85 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
-    function testMintDiscount() public {
-        configureMintDiscount();
+    function testConfigureMintDiscountERC721() public {
+        configureMintDiscountERC721();
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintDiscountInfo(address(testNFT));
+        require(supply == 10, "supply error");
+        require(allocated == 10, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 2, "tokenBalance error");
+        require(mintPrice == 0.025 ether, "mintPrice error");
+    }
+    function testConfigureMintDiscount_ArrayLengthMismatch() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](2);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        status[1] = false;
+        allocations[0] = 10;
+        tokenBalances[0] = 2 ether;
+        prices[0] = 0.025 ether;
+        hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
+        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintDiscount_Underflow() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 10;
+        tokenBalances[0] = 2 ether;
+        prices[0] = 0.025 ether;
+        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        allocations[0] = -11;
+        hevm.expectRevert(ERC721M.Underflow.selector);
+        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintDiscountReduceToZero() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 10;
+        tokenBalances[0] = 2 ether;
+        prices[0] = 0.025 ether;
+        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        allocations[0] = -10;
+        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintDiscountInfo(address(testToken));
+        require(supply == 0, "supply error");
+        require(allocated == 0, "allocated error");
+        require(active == false, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 2 ether, "tokenBalance error");
+        require(mintPrice == 0.025 ether, "mintPrice error");
+    }
+    function testMintDiscountERC20() public {
+        configureMintDiscountERC20();
         template.openMint();
         address asset = address(testToken);
         address to = address(this);
@@ -208,6 +307,100 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(template.balanceOf(address(this)) == 2, "balance error");
         require(template.ownerOf(1) == address(this), "owner/tokenId error");
         require(template.ownerOf(2) == address(this), "owner/tokenId error");
+        require(address(template.vault()).balance == 0.01 ether, "vault balance error");
+        require(address(template).balance == 0.04 ether, "contract balance error");
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintDiscountInfo(address(testToken));
+        require(supply == 8, "supply error");
+        require(allocated == 10, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 2 ether, "tokenBalance error");
+        require(mintPrice == 0.025 ether, "mintPrice error");
+    }
+    function testMintDiscountERC721() public {
+        configureMintDiscountERC721();
+        template.openMint();
+        address asset = address(testNFT);
+        address to = address(this);
+        uint64 amount = 2;
+        uint256 payment = 0.05 ether;
+        template.mintDiscount{ value: payment }(asset, to, amount);
+        require(template.balanceOf(address(this)) == 2, "balance error");
+        require(template.ownerOf(1) == address(this), "owner/tokenId error");
+        require(template.ownerOf(2) == address(this), "owner/tokenId error");
+        require(address(template.vault()).balance == 0.01 ether, "vault balance error");
+        require(address(template).balance == 0.04 ether, "contract balance error");
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintDiscountInfo(address(testNFT));
+        require(supply == 8, "supply error");
+        require(allocated == 10, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 2, "tokenBalance error");
+        require(mintPrice == 0.025 ether, "mintPrice error");
+    }
+    function testMintDiscount_NotActive() public {
+        template.openMint();
+        address asset = address(testNFT);
+        address to = address(this);
+        uint64 amount = 2;
+        uint256 payment = 0.05 ether;
+        hevm.expectRevert(ERC721M.NotActive.selector);
+        template.mintDiscount{ value: payment }(asset, to, amount);
+    }
+    function testMintDiscount_SpecialExceeded() public {
+        configureMintDiscountERC721();
+        template.openMint();
+        address asset = address(testNFT);
+        address to = address(this);
+        uint64 amount = 11;
+        uint256 payment = 0.275 ether;
+        hevm.expectRevert(ERC721M.SpecialExceeded.selector);
+        template.mintDiscount{ value: payment }(asset, to, amount);
+    }
+    function testMintDiscount_InsufficientBalance() public {
+        configureMintDiscountERC721();
+        template.openMint();
+        address asset = address(testNFT);
+        address to = address(this);
+        uint64 amount = 2;
+        uint256 payment = 0.05 ether;
+        hevm.deal(address(420), 10 ether);
+        hevm.expectRevert(ERC721M.InsufficientBalance.selector);
+        hevm.prank(address(420));
+        template.mintDiscount{ value: payment }(asset, to, amount);
+    }
+    function testMintDiscount_InsufficientPayment() public {
+        configureMintDiscountERC721();
+        template.openMint();
+        address asset = address(testNFT);
+        address to = address(this);
+        uint64 amount = 2;
+        uint256 payment = 0.04 ether;
+        hevm.expectRevert(ERC721M.InsufficientPayment.selector);
+        template.mintDiscount{ value: payment }(asset, to, amount);
+    }
+    function testMintDiscountAll() public {
+        configureMintDiscountERC20();
+        template.openMint();
+        address asset = address(testToken);
+        address to = address(this);
+        uint64 amount = 10;
+        uint256 payment = 0.25 ether;
+        template.mintDiscount{ value: payment }(asset, to, amount);
     }
 
     function configureMintBurn() public {
@@ -256,6 +449,177 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(template.balanceOf(address(this)) == 2, "balance error");
         require(template.ownerOf(1) == address(this), "owner/tokenId error");
         require(template.ownerOf(2) == address(this), "owner/tokenId error");
+        require(address(template.vault()).balance == 0.008 ether, "vault balance error");
+        require(address(template).balance == 0.032 ether, "contract balance error");
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintBurnInfo(address(testToken));
+        require(supply == 3, "supply error");
+        require(allocated == 5, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 1.5 ether, "tokenBalance error");
+        require(mintPrice == 0.02 ether, "mintPrice error");
+        uint256 amount = template.burnerInfo(address(template), address(testToken));
+        require(amount == 3 ether, "amount error");
+    }
+
+    function configureMintLock() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint40[] memory timelocks = new uint40[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 4;
+        timelocks[0] = 30 minutes;
+        tokenBalances[0] = 5 ether;
+        prices[0] = 0.069 ether;
+        template.configureMintLock(assets, status, allocations, timelocks, tokenBalances, prices);
+    }
+    function testConfigureMintLock() public {
+        configureMintLock();
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintLockInfo(address(testToken));
+        require(supply == 4, "supply error");
+        require(allocated == 4, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 30 minutes, "timelock error");
+        require(tokenBalance == 5 ether, "tokenBalance error");
+        require(mintPrice == 0.069 ether, "mintPrice error");
+    }
+    function testMintLock() public {
+        configureMintLock();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testToken);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](1);
+        lock[0] = 10 ether;
+        locks[0] = lock;
+        uint256 payment = 0.138 ether;
+        testToken.approve(address(template), type(uint256).max);
+        template.mintLock{ value: payment }(to, assets, locks);
+        require(template.balanceOf(address(this)) == 2, "balance error");
+        require(template.ownerOf(1) == address(this), "owner/tokenId error");
+        require(template.ownerOf(2) == address(this), "owner/tokenId error");
+        require(address(template.vault()).balance == 0.0276 ether, "vault balance error");
+        require(address(template).balance == 0.1104 ether, "contract balance error");
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintLockInfo(address(testToken));
+        require(supply == 2, "supply error");
+        require(allocated == 4, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 30 minutes, "timelock error");
+        require(tokenBalance == 5 ether, "tokenBalance error");
+        require(mintPrice == 0.069 ether, "mintPrice error");
+        uint256 amount = template.lockerInfo(address(template), address(testToken));
+        require(amount == 10 ether, "amount error");
+    }
+    function testUnlockAssets() public {
+        configureMintLock();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testToken);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](1);
+        lock[0] = 10 ether;
+        locks[0] = lock;
+        uint256 payment = 0.138 ether;
+        testToken.approve(address(template), type(uint256).max);
+        template.mintLock{ value: payment }(to, assets, locks);
+        hevm.warp(block.timestamp + 31 minutes);
+        uint256 balance = testToken.balanceOf(address(this));
+        template.unlockAssets(address(testToken));
+        require(testToken.balanceOf(address(this)) == balance + 10 ether, "balance error");
+        uint256 amount = template.lockerInfo(address(template), address(testToken));
+        require(amount == 0, "amount error");
+    }
+
+    function configureMintWithAssets() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 20;
+        tokenBalances[0] = 10 ether;
+        prices[0] = 0.1 ether;
+        template.configureMintWithAssets(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintWithAssets() public {
+        configureMintWithAssets();
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintWithAssetsInfo(address(testToken));
+        require(supply == 20, "supply error");
+        require(allocated == 20, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 10 ether, "tokenBalance error");
+        require(mintPrice == 0.1 ether, "mintPrice error");
+    }
+    function testMintWithAssets() public {
+        configureMintWithAssets();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testToken);
+        uint256[][] memory tokens = new uint256[][](1);
+        uint256[] memory token = new uint256[](1);
+        token[0] = 50 ether;
+        tokens[0] = token;
+        uint256 payment = 0.5 ether;
+        testToken.approve(address(template), type(uint256).max);
+        template.mintWithAssets{ value: payment }(to, assets, tokens);
+        require(template.balanceOf(address(this)) == 5, "balance error");
+        require(template.ownerOf(1) == address(this), "owner/tokenId error");
+        require(template.ownerOf(2) == address(this), "owner/tokenId error");
+        require(template.ownerOf(3) == address(this), "owner/tokenId error");
+        require(template.ownerOf(4) == address(this), "owner/tokenId error");
+        require(template.ownerOf(5) == address(this), "owner/tokenId error");
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintWithAssetsInfo(address(testToken));
+        require(supply == 15, "supply error");
+        require(allocated == 20, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 10 ether, "tokenBalance error");
+        require(mintPrice == 0.1 ether, "mintPrice error");
     }
 
     function testWrap(uint256 _amount) public {

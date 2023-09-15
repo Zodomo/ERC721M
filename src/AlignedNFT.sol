@@ -11,6 +11,7 @@ import "./AlignmentVault.sol";
 interface IAsset {
     function burn(uint256 tokens) external;
     function balanceOf(address holder) external returns (uint256);
+    function approve(address spender, uint256 tokens) external returns (bool);
     function transferFrom(address from, address to, uint256 tokens) external;
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
