@@ -33,15 +33,6 @@ contract ERC721MFactory is Ownable {
     mapping(address => ConstructorArgs) public contractArgs;
     mapping(address => address) public contractDeployers;
 
-    modifier onlyCollection(address _collection) {
-        if (contractDeployers[_collection] == address(0)) { revert NotDeployed(); }
-        _;
-    }
-
-    function ownershipUpdate(address _newOwner) external onlyCollection(msg.sender) {
-        emit OwnershipChanged(msg.sender, _newOwner);
-    }
-
     // Deploy MiyaMints flavored ERC721M collection
     function deploy(
         uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
@@ -69,7 +60,6 @@ contract ERC721MFactory is Ownable {
             _maxSupply,
             _price
         );
-        if (address(deployment) == address(0)) { revert NotDeployed(); }
         contractDeployers[address(deployment)] = msg.sender;
 
         ConstructorArgs memory args;

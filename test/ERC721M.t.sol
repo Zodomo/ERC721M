@@ -4,8 +4,8 @@ pragma solidity ^0.8.20;
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import "forge-std/console.sol";
 import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
-import "../lib/solady/test/utils/mocks/MockERC20.sol";
 import "../lib/solady/test/utils/mocks/MockERC721.sol";
+import "manual-tests/UnburnableERC20.sol";
 import "solady/utils/LibString.sol";
 import "../src/ERC721M.sol";
 
@@ -63,6 +63,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     ERC721M public template;
     IERC721 public nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
     MockERC20 public testToken;
+    UnburnableERC20 public testUnburnableToken;
     MockERC721 public testNFT;
 
     function setUp() public {
@@ -82,6 +83,8 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         hevm.deal(address(this), 1000 ether);
         testToken = new MockERC20("Test Token", "TEST", 18);
         testToken.mint(address(this), 100 ether);
+        testUnburnableToken = new UnburnableERC20("Unburnable Token", "UBTEST", 18);
+        testUnburnableToken.mint(address(this), 100 ether);
         testNFT = new MockERC721();
         testNFT.safeMint(address(this), 1);
         testNFT.safeMint(address(this), 2);
@@ -403,7 +406,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.mintDiscount{ value: payment }(asset, to, amount);
     }
 
-    function configureMintBurn() public {
+    function configureMintBurnERC20() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
         int64[] memory allocations = new int64[](1);
@@ -416,8 +419,21 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         prices[0] = 0.02 ether;
         template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
     }
-    function testConfigureMintBurn() public {
-        configureMintBurn();
+    function configureMintBurnERC721() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testNFT);
+        status[0] = true;
+        allocations[0] = 5;
+        tokenBalances[0] = 1;
+        prices[0] = 0.02 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintBurnERC20() public {
+        configureMintBurnERC20();
         (
             int64 supply,
             int64 allocated,
@@ -433,8 +449,85 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 1.5 ether, "tokenBalance error");
         require(mintPrice == 0.02 ether, "mintPrice error");
     }
-    function testMintBurn() public {
-        configureMintBurn();
+    function testConfigureMintBurnERC721() public {
+        configureMintBurnERC721();
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintBurnInfo(address(testNFT));
+        require(supply == 5, "supply error");
+        require(allocated == 5, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 1, "tokenBalance error");
+        require(mintPrice == 0.02 ether, "mintPrice error");
+    }
+    function testConfigureMintBurn_ArrayLengthMismatch() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](2);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        status[1] = false;
+        allocations[0] = 10;
+        tokenBalances[0] = 2 ether;
+        prices[0] = 0.025 ether;
+        hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintBurn_Underflow() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 10;
+        tokenBalances[0] = 2 ether;
+        prices[0] = 0.025 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        allocations[0] = -11;
+        hevm.expectRevert(ERC721M.Underflow.selector);
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintBurnReduceToZero() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 10;
+        tokenBalances[0] = 2 ether;
+        prices[0] = 0.025 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        allocations[0] = -10;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintBurnInfo(address(testToken));
+        require(supply == 0, "supply error");
+        require(allocated == 0, "allocated error");
+        require(active == false, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 2 ether, "tokenBalance error");
+        require(mintPrice == 0.025 ether, "mintPrice error");
+    }
+    function testMintBurnERC20() public {
+        configureMintBurnERC20();
         template.openMint();
         address to = address(this);
         address[] memory assets = new address[](1);
@@ -465,11 +558,310 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(timelock == 0, "timelock error");
         require(tokenBalance == 1.5 ether, "tokenBalance error");
         require(mintPrice == 0.02 ether, "mintPrice error");
-        uint256 amount = template.burnerInfo(address(template), address(testToken));
-        require(amount == 3 ether, "amount error");
+        require(template.burnerInfo(address(template), address(testToken)) == 3 ether, "burn record error");
+        require(template.burnerInfo(address(this), address(testToken)) == 0, "burner record error");
+    }
+    function testMintBurnERC721() public {
+        configureMintBurnERC721();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testNFT);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](2);
+        burn[0] = 1;
+        burn[1] = 2;
+        burns[0] = burn;
+        uint256 payment = 0.04 ether;
+        testNFT.setApprovalForAll(address(template), true);
+        template.mintBurn{ value: payment }(to, assets, burns);
+        require(template.balanceOf(address(this)) == 2, "balance error");
+        require(template.ownerOf(1) == address(this), "owner/tokenId error");
+        require(template.ownerOf(2) == address(this), "owner/tokenId error");
+        require(address(template.vault()).balance == 0.008 ether, "vault balance error");
+        require(address(template).balance == 0.032 ether, "contract balance error");
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintBurnInfo(address(testNFT));
+        require(supply == 3, "supply error");
+        require(allocated == 5, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 1, "tokenBalance error");
+        require(mintPrice == 0.02 ether, "mintPrice error");
+        require(template.burnerInfo(address(template), address(testNFT)) == 2, "burn record error");
+        require(template.burnerInfo(address(this), address(testNFT)) == 0, "burner record error");
+    }
+    function testMintBurn_MintClosed() public {
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testNFT);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](2);
+        burn[0] = 1;
+        burn[1] = 2;
+        burns[0] = burn;
+        uint256 payment = 0.04 ether;
+        testNFT.setApprovalForAll(address(template), true);
+        hevm.expectRevert(ERC721M.MintClosed.selector);
+        template.mintBurn{ value: payment }(to, assets, burns);
+    }
+    function testMintBurn_CapReached() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 100;
+        tokenBalances[0] = 0.1 ether;
+        prices[0] = 0.001 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        template.openMint();
+
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 10 ether;
+        burns[0] = burn;
+        uint256 payment = 0.10 ether;
+        testToken.approve(address(template), type(uint256).max);
+        template.mintBurn{ value: payment }(to, tokens, burns);
+
+        burn[0] = 0.1 ether;
+        burns[0] = burn;
+        payment = 0.001 ether;
+        hevm.expectRevert(ERC721M.CapReached.selector);
+        template.mintBurn{ value: payment }(to, tokens, burns);
+    }
+    function testMintBurn_ArrayLengthMismatch() public {
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](2);
+        assets[0] = address(testToken);
+        assets[1] = address(testNFT);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 10 ether;
+        burns[0] = burn;
+        uint256 payment = 0.10 ether;
+        hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
+        template.mintBurn{ value: payment }(to, assets, burns);
+    }
+    function testMintBurn_NotERC721() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 100;
+        tokenBalances[0] = 0.1 ether;
+        prices[0] = 0.001 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        template.openMint();
+
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](2);
+        burn[0] = 10 ether;
+        burn[1] = 1 ether;
+        burns[0] = burn;
+        uint256 payment = 0.10 ether;
+        hevm.expectRevert(ERC721M.NotERC721.selector);
+        template.mintBurn{ value: payment }(to, tokens, burns);
+    }
+    function testMintBurn_NotActive() public {
+        template.openMint();
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 10 ether;
+        burns[0] = burn;
+        uint256 payment = 0.10 ether;
+        hevm.expectRevert(ERC721M.NotActive.selector);
+        template.mintBurn{ value: payment }(to, tokens, burns);
+    }
+    function testMintBurnERC20_SpecialExceeded() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 1;
+        tokenBalances[0] = 1 ether;
+        prices[0] = 0.02 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        template.openMint();
+
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 2 ether;
+        burns[0] = burn;
+        uint256 payment = 0.04 ether;
+        hevm.expectRevert(ERC721M.SpecialExceeded.selector);
+        template.mintBurn{ value: payment }(to, tokens, burns);
+    }
+    function testMintBurnERC721_SpecialExceeded() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testNFT);
+        status[0] = true;
+        allocations[0] = 1;
+        tokenBalances[0] = 1;
+        prices[0] = 0.02 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        template.openMint();
+
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testNFT);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](2);
+        burn[0] = 1;
+        burn[1] = 2;
+        burns[0] = burn;
+        uint256 payment = 0.04 ether;
+        hevm.expectRevert(ERC721M.SpecialExceeded.selector);
+        template.mintBurn{ value: payment }(to, tokens, burns);
+    }
+    function testMintBurn_CapExceeded() public {
+        template.openMint();
+        template.mint{ value: 0.99 ether }(address(this), 99);
+        configureMintBurnERC20();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 3 ether;
+        burns[0] = burn;
+        uint256 payment = 0.04 ether;
+        testToken.approve(address(template), type(uint256).max);
+        hevm.expectRevert(ERC721M.CapExceeded.selector);
+        template.mintBurn{ value: payment }(to, assets, burns);
+    }
+    function testMintBurn_InsufficientPayment() public {
+        configureMintBurnERC20();
+        template.openMint();
+        testToken.approve(address(template), type(uint256).max);
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 3 ether;
+        burns[0] = burn;
+        uint256 payment = 0.03 ether;
+        hevm.expectRevert(ERC721M.InsufficientPayment.selector);
+        template.mintBurn{ value: payment }(to, assets, burns);
+    }
+    function testMintBurnERC20_NotBurnable() public {
+        configureMintBurnERC20();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 3 ether;
+        burns[0] = burn;
+        uint256 payment = 0.04 ether;
+        // NotBurnable because burn state is checked as approval revert is obscured by try/catch
+        hevm.expectRevert(ERC721M.NotBurnable.selector);
+        template.mintBurn{ value: payment }(to, assets, burns);
+    }
+    function testMintBurnERC721_NotBurnable() public {
+        configureMintBurnERC721();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testNFT);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 1;
+        burns[0] = burn;
+        uint256 payment = 0.02 ether;
+        // NotBurnable because burn state is checked as approval revert is obscured by try/catch
+        hevm.expectRevert(ERC721M.NotBurnable.selector);
+        template.mintBurn{ value: payment }(to, assets, burns);
+    }
+    function testMintBurnERC20NoBurnFunction() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testUnburnableToken);
+        status[0] = true;
+        allocations[0] = 5;
+        tokenBalances[0] = 1.5 ether;
+        prices[0] = 0.02 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        template.openMint();
+        
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testUnburnableToken);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 3 ether;
+        burns[0] = burn;
+        uint256 payment = 0.04 ether;
+        testUnburnableToken.approve(address(template), type(uint256).max);
+        template.mintBurn{ value: payment }(to, tokens, burns);
+        require(template.balanceOf(address(this)) == 2, "balance error");
+        require(template.ownerOf(1) == address(this), "owner/tokenId error");
+        require(template.ownerOf(2) == address(this), "owner/tokenId error");
+    }
+    function testMintBurnAll() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testNFT);
+        status[0] = true;
+        allocations[0] = 1;
+        tokenBalances[0] = 1;
+        prices[0] = 0.02 ether;
+        template.configureMintBurn(assets, status, allocations, tokenBalances, prices);
+        template.openMint();
+
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testNFT);
+        uint256[][] memory burns = new uint256[][](1);
+        uint256[] memory burn = new uint256[](1);
+        burn[0] = 1;
+        burns[0] = burn;
+        uint256 payment = 0.02 ether;
+        testNFT.setApprovalForAll(address(template), true);
+        template.mintBurn{ value: payment }(to, tokens, burns);
     }
 
-    function configureMintLock() public {
+    function configureMintLockERC20() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
         int64[] memory allocations = new int64[](1);
@@ -484,8 +876,23 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         prices[0] = 0.069 ether;
         template.configureMintLock(assets, status, allocations, timelocks, tokenBalances, prices);
     }
-    function testConfigureMintLock() public {
-        configureMintLock();
+    function configureMintLockERC721() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint40[] memory timelocks = new uint40[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testNFT);
+        status[0] = true;
+        allocations[0] = 4;
+        timelocks[0] = 30 minutes;
+        tokenBalances[0] = 1;
+        prices[0] = 0.069 ether;
+        template.configureMintLock(assets, status, allocations, timelocks, tokenBalances, prices);
+    }
+    function testConfigureMintLockERC20() public {
+        configureMintLockERC20();
         (
             int64 supply,
             int64 allocated,
@@ -501,8 +908,89 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 5 ether, "tokenBalance error");
         require(mintPrice == 0.069 ether, "mintPrice error");
     }
-    function testMintLock() public {
-        configureMintLock();
+    function testConfigureMintLockERC721() public {
+        configureMintLockERC721();
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintLockInfo(address(testNFT));
+        require(supply == 4, "supply error");
+        require(allocated == 4, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 30 minutes, "timelock error");
+        require(tokenBalance == 1, "tokenBalance error");
+        require(mintPrice == 0.069 ether, "mintPrice error");
+    }
+    function testConfigureMintLock_ArrayLengthMismatch() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](2);
+        int64[] memory allocations = new int64[](1);
+        uint40[] memory timelocks = new uint40[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        status[1] = false;
+        allocations[0] = 4;
+        timelocks[0] = 30 minutes;
+        tokenBalances[0] = 5 ether;
+        prices[0] = 0.069 ether;
+        hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
+        template.configureMintLock(assets, status, allocations, timelocks, tokenBalances, prices);
+    }
+    function testConfigureMintLock_Underflow() public {
+        configureMintLockERC20();
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint40[] memory timelocks = new uint40[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = -5;
+        timelocks[0] = 30 minutes;
+        tokenBalances[0] = 5 ether;
+        prices[0] = 0.069 ether;
+        hevm.expectRevert(ERC721M.Underflow.selector);
+        template.configureMintLock(assets, status, allocations, timelocks, tokenBalances, prices);
+    }
+    function testConfigureMintLockReduceToZero() public {
+        configureMintLockERC20();
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint40[] memory timelocks = new uint40[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = -4;
+        timelocks[0] = 30 minutes;
+        tokenBalances[0] = 5 ether;
+        prices[0] = 0.069 ether;
+        template.configureMintLock(assets, status, allocations, timelocks, tokenBalances, prices);
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintLockInfo(address(testToken));
+        require(supply == 0, "supply error");
+        require(allocated == 0, "allocated error");
+        require(active == false, "active error");
+        require(timelock == 30 minutes, "timelock error");
+        require(tokenBalance == 5 ether, "tokenBalance error");
+        require(mintPrice == 0.069 ether, "mintPrice error");
+    }
+    function testMintLockERC20() public {
+        configureMintLockERC20();
         template.openMint();
         address to = address(this);
         address[] memory assets = new address[](1);
@@ -533,11 +1021,127 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(timelock == 30 minutes, "timelock error");
         require(tokenBalance == 5 ether, "tokenBalance error");
         require(mintPrice == 0.069 ether, "mintPrice error");
-        uint256 amount = template.lockerInfo(address(template), address(testToken));
-        require(amount == 10 ether, "amount error");
+        require(template.lockerInfo(address(template), address(testToken)) == 10 ether, "lock amount error");
     }
-    function testUnlockAssets() public {
-        configureMintLock();
+    function testMintLockERC721() public {
+        configureMintLockERC721();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testNFT);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](1);
+        lock[0] = 1;
+        locks[0] = lock;
+        uint256 payment = 0.069 ether;
+        testNFT.setApprovalForAll(address(template), true);
+        template.mintLock{ value: payment }(to, assets, locks);
+        require(template.balanceOf(address(this)) == 1, "balance error");
+        require(template.ownerOf(1) == address(this), "owner/tokenId error");
+        require(address(template.vault()).balance == 0.0138 ether, "vault balance error");
+        require(address(template).balance == 0.0552 ether, "contract balance error");
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintLockInfo(address(testNFT));
+        require(supply == 3, "supply error");
+        require(allocated == 4, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 30 minutes, "timelock error");
+        require(tokenBalance == 1, "tokenBalance error");
+        require(mintPrice == 0.069 ether, "mintPrice error");
+        require(template.lockerInfo(address(template), address(testNFT)) == 1, "lock amount error");
+    }
+    function testMintLock_MintClosed() public {
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testNFT);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](2);
+        lock[0] = 1;
+        locks[0] = lock;
+        uint256 payment = 0.069 ether;
+        testNFT.setApprovalForAll(address(template), true);
+        hevm.expectRevert(ERC721M.MintClosed.selector);
+        template.mintLock{ value: payment }(to, assets, locks);
+    }
+    function testMintLock_CapReached() public {
+        configureMintWithAssetsERC721();
+        template.openMint();
+        template.mint{ value: 1 ether }(address(this), 100);
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testNFT);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](2);
+        lock[0] = 1;
+        locks[0] = lock;
+        uint256 payment = 0.069 ether;
+        testNFT.setApprovalForAll(address(template), true);
+        hevm.expectRevert(ERC721M.CapReached.selector);
+        template.mintLock{ value: payment }(to, assets, locks);
+    }
+    function testMintLock_ArrayLengthMismatch() public {
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](2);
+        assets[0] = address(testToken);
+        assets[1] = address(testNFT);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](1);
+        lock[0] = 10 ether;
+        locks[0] = lock;
+        uint256 payment = 0.10 ether;
+        hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
+        template.mintLock{ value: payment }(to, assets, locks);
+    }
+    function testMintLock_NotERC721() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint40[] memory timelocks = new uint40[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = 5;
+        timelocks[0] = 30 minutes;
+        tokenBalances[0] = 0.1 ether;
+        prices[0] = 0.005 ether;
+        template.configureMintLock(assets, status, allocations, timelocks, tokenBalances, prices);
+        template.openMint();
+
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testToken);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](2);
+        lock[0] = 1 ether;
+        lock[1] = 1 ether;
+        locks[0] = lock;
+        uint256 payment = 0.1 ether;
+        hevm.expectRevert(ERC721M.NotERC721.selector);
+        template.mintLock{ value: payment }(to, tokens, locks);
+    }
+    function testMintLock_NotActive() public {
+        template.openMint();
+        address to = address(this);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(testToken);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](1);
+        lock[0] = 10 ether;
+        locks[0] = lock;
+        uint256 payment = 0.10 ether;
+        hevm.expectRevert(ERC721M.NotActive.selector);
+        template.mintLock{ value: payment }(to, tokens, locks);
+    }
+    function testUnlockAssetsERC20() public {
+        configureMintLockERC20();
         template.openMint();
         address to = address(this);
         address[] memory assets = new address[](1);
@@ -557,7 +1161,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(amount == 0, "amount error");
     }
 
-    function configureMintWithAssets() public {
+    function configureMintWithAssetsERC20() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
         int64[] memory allocations = new int64[](1);
@@ -570,8 +1174,21 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         prices[0] = 0.1 ether;
         template.configureMintWithAssets(assets, status, allocations, tokenBalances, prices);
     }
-    function testConfigureMintWithAssets() public {
-        configureMintWithAssets();
+    function configureMintWithAssetsERC721() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testNFT);
+        status[0] = true;
+        allocations[0] = 2;
+        tokenBalances[0] = 1;
+        prices[0] = 0.1 ether;
+        template.configureMintWithAssets(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintWithAssetsERC20() public {
+        configureMintWithAssetsERC20();
         (
             int64 supply,
             int64 allocated,
@@ -587,8 +1204,83 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 10 ether, "tokenBalance error");
         require(mintPrice == 0.1 ether, "mintPrice error");
     }
-    function testMintWithAssets() public {
-        configureMintWithAssets();
+    function testConfigureMintWithAssetsERC721() public {
+        configureMintWithAssetsERC721();
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintWithAssetsInfo(address(testNFT));
+        require(supply == 2, "supply error");
+        require(allocated == 2, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 1, "tokenBalance error");
+        require(mintPrice == 0.1 ether, "mintPrice error");
+    }
+    function testConfigureMintWithAssets_ArrayLengthMismatch() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](2);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        status[1] = false;
+        allocations[0] = 20;
+        tokenBalances[0] = 10 ether;
+        prices[0] = 0.1 ether;
+        hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
+        template.configureMintWithAssets(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintWithAssets_Underflow() public {
+        configureMintWithAssetsERC721();
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testNFT);
+        status[0] = true;
+        allocations[0] = -3;
+        tokenBalances[0] = 1;
+        prices[0] = 0.1 ether;
+        hevm.expectRevert(ERC721M.Underflow.selector);
+        template.configureMintWithAssets(assets, status, allocations, tokenBalances, prices);
+    }
+    function testConfigureMintWithAssetsReduceToZero() public {
+        configureMintWithAssetsERC20();
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testToken);
+        status[0] = true;
+        allocations[0] = -20;
+        tokenBalances[0] = 10 ether;
+        prices[0] = 0.1 ether;
+        template.configureMintWithAssets(assets, status, allocations, tokenBalances, prices);
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintWithAssetsInfo(address(testToken));
+        require(supply == 0, "supply error");
+        require(allocated == 0, "allocated error");
+        require(active == false, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 10 ether, "tokenBalance error");
+        require(mintPrice == 0.1 ether, "mintPrice error");
+    }
+    function testMintWithAssetsERC20() public {
+        configureMintWithAssetsERC20();
         template.openMint();
         address to = address(this);
         address[] memory assets = new address[](1);
@@ -619,6 +1311,36 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(active == true, "active error");
         require(timelock == 0, "timelock error");
         require(tokenBalance == 10 ether, "tokenBalance error");
+        require(mintPrice == 0.1 ether, "mintPrice error");
+    }
+    function testMintWithAssetsERC721() public {
+        configureMintWithAssetsERC721();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testNFT);
+        uint256[][] memory tokens = new uint256[][](1);
+        uint256[] memory token = new uint256[](1);
+        token[0] = 1;
+        tokens[0] = token;
+        uint256 payment = 0.1 ether;
+        testNFT.setApprovalForAll(address(template), true);
+        template.mintWithAssets{ value: payment }(to, assets, tokens);
+        require(template.balanceOf(address(this)) == 1, "balance error");
+        require(template.ownerOf(1) == address(this), "owner/tokenId error");
+        (
+            int64 supply,
+            int64 allocated,
+            bool active,
+            uint40 timelock,
+            uint256 tokenBalance,
+            uint256 mintPrice
+        ) = template.mintWithAssetsInfo(address(testNFT));
+        require(supply == 1, "supply error");
+        require(allocated == 2, "allocated error");
+        require(active == true, "active error");
+        require(timelock == 0, "timelock error");
+        require(tokenBalance == 1, "tokenBalance error");
         require(mintPrice == 0.1 ether, "mintPrice error");
     }
 
@@ -679,12 +1401,42 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.rescueERC20(address(testToken), address(42));
         require(testToken.balanceOf(address(42)) >= 1 ether);
     }
-    // TODO: Implement tests for token locking
-    // function testRescueERC20_LockedToken() public { }
+    function testRescueERC20_LockedAsset() public {
+        configureMintLockERC20();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testToken);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](1);
+        lock[0] = 10 ether;
+        locks[0] = lock;
+        uint256 payment = 0.138 ether;
+        testToken.approve(address(template), type(uint256).max);
+        template.mintLock{ value: payment }(to, assets, locks);
+        hevm.expectRevert(ERC721M.LockedAsset.selector);
+        template.rescueERC20(address(testToken), address(this));
+    }
     function testRescueERC721() public {
         testNFT.transferFrom(address(this), address(template.vault()), 1);
         template.rescueERC721(address(testNFT), address(42), 1);
         require(testNFT.ownerOf(1) == address(42));
+    }
+    function testRescueERC721_LockedAsset() public {
+        configureMintLockERC721();
+        template.openMint();
+        address to = address(this);
+        address[] memory assets = new address[](1);
+        assets[0] = address(testNFT);
+        uint256[][] memory locks = new uint256[][](1);
+        uint256[] memory lock = new uint256[](1);
+        lock[0] = 1;
+        locks[0] = lock;
+        uint256 payment = 0.069 ether;
+        testNFT.setApprovalForAll(address(template), true);
+        template.mintLock{ value: payment }(to, assets, locks);
+        hevm.expectRevert(ERC721M.LockedAsset.selector);
+        template.rescueERC721(address(testNFT), address(this), 1);
     }
 
     function testWithdrawFunds() public {

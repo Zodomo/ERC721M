@@ -6,10 +6,6 @@ import "solady/utils/LibString.sol";
 import "solady/utils/SafeCastLib.sol";
 import "./AlignedNFT.sol";
 
-interface IFactory {
-    function ownershipUpdate(address _newOwner) external;
-}
-
 // This is a WIP contract
 // Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@proton.me
 // https://github.com/Zodomo/ERC721M
@@ -92,8 +88,6 @@ contract ERC721M is AlignedNFT {
         uint40[] timelocks;
     }
 
-    // NOTE: Must set factory address if factory is to be notified of ownership changes
-    address public constant factory = address(0);
     bool public uriLocked;
     bool public mintOpen;
     string private _name;
@@ -182,18 +176,6 @@ contract ERC721M is AlignedNFT {
     function lockURI() public virtual onlyOwner {
         uriLocked = true;
         emit URILock();
-    }
-
-    // Ownership change overrides to callback into factory to notify frontend
-    function transferOwnership(address _newOwner) public payable override onlyOwner {
-        address _factory = factory;
-        if (_factory != address(0)) { IFactory(_factory).ownershipUpdate(_newOwner); }
-        super.transferOwnership(_newOwner);
-    }
-    function renounceOwnership() public payable override onlyOwner {
-        address _factory = factory;
-        if (_factory != address(0)) { IFactory(_factory).ownershipUpdate(address(0)); }
-        super.renounceOwnership();
     }
 
     // Standard mint function that supports batch minting
@@ -586,15 +568,17 @@ contract ERC721M is AlignedNFT {
             uint256 canMint;
             if (isERC721) {
                 if (info.tokenBalance > _tokens[i].length) { revert InsufficientAssets(); }
-                canMint += _tokens[i].length / info.tokenBalance;
+                unchecked { canMint += _tokens[i].length / info.tokenBalance; }
             } else {
                 if (_tokens[i].length != 1) { revert NotERC721(); }
                 if (info.tokenBalance > _tokens[i][0]) { revert InsufficientAssets(); }
-                canMint += _tokens[i][0] / info.tokenBalance;
+                unchecked { canMint += _tokens[i][0] / info.tokenBalance; }
             }
             if (canMint > uint256(int256(info.supply))) { revert SpecialExceeded(); }
-            mintNum += canMint;
-            requiredPayment += canMint * info.mintPrice;
+            unchecked {
+                mintNum += canMint;
+                requiredPayment += canMint * info.mintPrice;
+            }
 
             uint256 balance = IAsset(asset).balanceOf(address(msg.sender));
             uint256 iterations;
@@ -693,10 +677,7 @@ contract ERC721M is AlignedNFT {
     // Internal handling for receive() and fallback() to reduce code length
     function _processPayment() internal {
         if (mintOpen && msg.value >= price) { mint(msg.sender, uint64(msg.value / price)); }
-        else {
-            (bool success, ) = payable(address(vault)).call{ value: msg.value }("");
-            if (!success) { revert TransferFailed(); }
-        }
+        else { payable(address(vault)).call{ value: msg.value }(""); }
     }
     // Attempt to use funds sent directly to contract on mints if open and mintable, else send to vault
     receive() external payable { _processPayment(); }
