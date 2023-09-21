@@ -409,14 +409,14 @@ contract ERC721M is AlignedNFT {
                 if (_locks[i].length / mintInfo.tokenBalance > uint256(int256(mintInfo.supply))) {
                     revert SpecialExceeded();
                 }
-                if (_locks[i].length / mintInfo.tokenBalance < 0) {
+                if (_locks[i].length / mintInfo.tokenBalance == 0) {
                     revert InsufficientLock();
                 }
             } else {
                 if (_locks[i][0] / mintInfo.tokenBalance > uint256(int256(mintInfo.supply))) {
                     revert SpecialExceeded();
                 }
-                if (_locks[i][0] / mintInfo.tokenBalance < 0) {
+                if (_locks[i][0] / mintInfo.tokenBalance == 0) {
                     revert InsufficientLock();
                 }
             }
