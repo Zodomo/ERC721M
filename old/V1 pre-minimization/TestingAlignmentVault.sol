@@ -20,6 +20,16 @@ contract TestingAlignmentVault is AlignmentVault {
 
     function call_estimateFloor() public view returns (uint256) { return _estimateFloor(); }
     
+    function execute_wrap(uint256 _eth) public { wrap(_eth); }
+    function execute_addLiquidity(uint256[] calldata _tokenIds) public { addLiquidity(_tokenIds); }
+    function execute_deepenLiquidity(
+        uint112 _eth,
+        uint112 _weth,
+        uint112 _nftxInv
+    ) public returns (uint256) { return (deepenLiquidity(_eth, _weth, _nftxInv)); }
+    function execute_stakeLiquidity() public returns (uint256) { return (stakeLiquidity()); }
+    function execute_claimRewards(address _recipient) public { claimRewards(_recipient); }
+    function execute_compoundRewards(uint112 _eth, uint112 _weth) public { compoundRewards(_eth, _weth); }
     function execute_rescueERC20(address _token, address _to) public returns (uint256) {
         return (rescueERC20(_token, _to));
     }

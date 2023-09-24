@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
+import "openzeppelin/proxy/utils/Initializable.sol";
 import "liquidity-helper/UniswapV2LiquidityHelper.sol";
 
 interface INFTXFactory {
@@ -19,33 +20,17 @@ interface INFTXLPStaking {
 }
 
 interface INFTXStakingZap {
-    function provideInventory721(uint256 vaultId, uint256[] calldata tokenIds) external;
     function addLiquidity721(uint256 vaultId, uint256[] calldata ids, uint256 minWethIn, uint256 wethIn) external returns (uint256);
 }
 
-/// @notice A generic interface for a contract which properly accepts ERC721 tokens.
-/// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC721.sol)
-abstract contract ERC721TokenReceiver {
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes calldata
-    ) external virtual returns (bytes4) {
-        return ERC721TokenReceiver.onERC721Received.selector;
-    }
-}
-
-contract AlignmentVault is Ownable, ERC721TokenReceiver {
+contract AlignmentVault is Ownable, Initializable {
 
     error InsufficientBalance();
-    error IdenticalAddresses();
+    error InvalidVaultId();
+    error AlignedAsset();
+    error NoNFTXVault();
     error ZeroAddress();
     error ZeroValues();
-    error NFTXVaultDoesntExist();
-    error AlignedAsset();
-    error PriceTooHigh();
-    error SeaportPurchaseFailed();
 
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
@@ -56,168 +41,182 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
     INFTXLPStaking constant internal _NFTX_LIQUIDITY_STAKING = INFTXLPStaking(0x688c3E4658B5367da06fd629E41879beaB538E37);
     INFTXStakingZap constant internal _NFTX_STAKING_ZAP = INFTXStakingZap(0xdC774D5260ec66e5DD4627E1DD800Eff3911345C);
     
-    IERC721 internal immutable _erc721; // ERC721 token
-    IERC20 internal immutable _nftxInventory; // NFTX NFT token
-    IERC20 internal immutable _nftxLiquidity; // NFTX NFTWETH token
-    uint256 internal immutable _vaultId;
+    IERC721 public erc721; // ERC721 token
+    IERC20 public nftxInventory; // NFTX NFT token
+    IERC20 public nftxLiquidity; // NFTX NFTWETH token
+    uint256 public vaultId;
+    uint256[] public nftsHeld;
 
+    constructor() payable { }
+    function initializeVault(address _erc721, uint256 _vaultId) external initializer {
+        // Initialize contract ownership
+        _initializeOwner(msg.sender);
+        // Set target NFT collection for alignment
+        erc721 = IERC721(_erc721);
+        // Approve sending any NFT tokenId to NFTX Staking Zap contract
+        erc721.setApprovalForAll(address(_NFTX_STAKING_ZAP), true);
+        // Max approve WETH to NFTX LP Staking contract
+        IERC20(address(_WETH)).approve(address(_NFTX_STAKING_ZAP), type(uint256).max);
+        // Derive vaultId if necessary
+        // Loop index is set to max value in order to determine if a match was found
+        uint256 index = type(uint256).max;
+        // If no vaultId is specified, use default (initial) vault
+        if (_vaultId == 0) { index = 0; }
+        else {
+            // Retrieve all vaults
+            address[] memory vaults = _NFTX_VAULT_FACTORY.vaultsForAsset(_erc721);
+            if (vaults.length == 0) { revert NoNFTXVault(); }
+            for (uint256 i; i < vaults.length;) {
+                if (INFTXVault(vaults[i]).vaultId() == _vaultId) {
+                    index = i;
+                    vaultId = _vaultId;
+                    break;
+                }
+                unchecked { ++i; }
+            }
+            if (index == type(uint256).max) { revert InvalidVaultId(); }
+        }
+        // Derive nftxInventory token contract and vaultId if necessary
+        address _nftxInventory = _NFTX_VAULT_FACTORY.vaultsForAsset(_erc721)[index];
+        if (_vaultId == 0) { vaultId = INFTXVault(_nftxInventory).vaultId(); }
+        nftxInventory = IERC20(_nftxInventory);
+        // Derive nftxLiquidity LP contract
+        nftxLiquidity = IERC20(UniswapV2Library.pairFor(
+            _SUSHI_V2_FACTORY,
+            address(_WETH),
+            _nftxInventory
+        ));
+        // Approve sending nftxLiquidity to NFTX LP Staking contract
+        nftxLiquidity.approve(address(_NFTX_LIQUIDITY_STAKING), type(uint256).max);
+        // Setup liquidity helper
+        _liqHelper = new UniswapV2LiquidityHelper(_SUSHI_V2_FACTORY, address(_SUSHI_V2_ROUTER), address(_WETH));
+        // Approve tokens to liquidity helper
+        IERC20(address(_WETH)).approve(address(_liqHelper), type(uint256).max);
+        nftxInventory.approve(address(_liqHelper), type(uint256).max);
+    }
+    function disableInitializers() external onlyOwner { _disableInitializers(); }
+    
     // Use NFTX SLP for aligned NFT as floor price oracle and for determining WETH required for adding liquidity
     // Using NFTX as a price oracle is intentional, as Chainlink/others weren't sufficient or too expensive
     function _estimateFloor() internal view returns (uint256) {
         // Retrieve SLP reserves to calculate price of NFT token in WETH
-        (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(_nftxLiquidity)).getReserves();
+        (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(nftxLiquidity)).getReserves();
         // Calculate value of NFT spot in WETH using SLP reserves values
         uint256 spotPrice;
         // Reverse reserve values if token1 isn't WETH
-        if (IUniswapV2Pair(address(_nftxLiquidity)).token1() != address(_WETH)) {
+        if (IUniswapV2Pair(address(nftxLiquidity)).token1() != address(_WETH)) {
             spotPrice = ((10**18 * uint256(reserve0)) / uint256(reserve1));
         } else { spotPrice = ((10**18 * uint256(reserve1)) / uint256(reserve0)); }
         return (spotPrice);
     }
 
-    constructor(address _nft) payable {
-        // Initialize contract ownership
-        _initializeOwner(msg.sender);
-        // Set target NFT collection for alignment
-        _erc721 = IERC721(_nft);
-        // Approve sending any NFT tokenId to NFTX Staking Zap contract
-        _erc721.setApprovalForAll(address(_NFTX_STAKING_ZAP), true);
-        // Max approve WETH to NFTX LP Staking contract
-        IERC20(address(_WETH)).approve(address(_NFTX_STAKING_ZAP), type(uint256).max);
-        // Derive _nftxInventory token contract
-        _nftxInventory = IERC20(address(_NFTX_VAULT_FACTORY.vaultsForAsset(address(_erc721))[0]));
-        // Revert if NFTX vault doesn't exist
-        if (address(_nftxInventory) == address(0)) { revert NFTXVaultDoesntExist(); }
-        // Derive _nftxLiquidity LP contract
-        _nftxLiquidity = IERC20(UniswapV2Library.pairFor(
-            _SUSHI_V2_FACTORY,
-            address(_WETH),
-            address(_nftxInventory)
-        ));
-        // Approve sending _nftxLiquidity to NFTX LP Staking contract
-        _nftxLiquidity.approve(address(_NFTX_LIQUIDITY_STAKING), type(uint256).max);
-        // Derive _vaultId
-        _vaultId = INFTXVault(address(_nftxInventory)).vaultId();
-        // Setup liquidity helper
-        _liqHelper = new UniswapV2LiquidityHelper(_SUSHI_V2_FACTORY, address(_SUSHI_V2_ROUTER), address(_WETH));
-        // Approve tokens to liquidity helper
-        IERC20(address(_WETH)).approve(address(_liqHelper), type(uint256).max);
-        _nftxInventory.approve(address(_liqHelper), type(uint256).max);
-    }
+    function alignLiquidity() external onlyOwner {
+        // Cache vaultId to save gas
+        uint256 _vaultId = vaultId;
+        // Wrap all ETH, if any
+        uint256 balance = address(this).balance;
+        if (balance > 0) { _WETH.deposit{ value: balance }(); }
+        // Update balance to total WETH
+        balance = IERC20(address(_WETH)).balanceOf(address(this));
 
-    // Check token balances
-    function checkBalanceNFT() public view returns (uint256) { return (_erc721.balanceOf(address(this))); }
-    function checkBalanceETH() public view returns (uint256) { return (address(this).balance); }
-    function checkBalanceWETH() public view returns (uint256) { return (IERC20(address(_WETH)).balanceOf(address(this))); }
-    function checkBalanceNFTXLiquidity() public view returns (uint256) { return (_nftxLiquidity.balanceOf(address(this))); }
-
-    // Wrap ETH into WETH
-    function wrap(uint256 _eth) public onlyOwner {
-        _WETH.deposit{ value: _eth }();
-    }
-
-    // Add NFTs and WETH to NFTX NFTWETH SLP
-    function addLiquidity(uint256[] calldata _tokenIds) public onlyOwner returns (uint256) {
-        // Store _tokenIds.length in memory to save gas
-        uint256 length = _tokenIds.length;
-        // Retrieve WETH balance
-        uint256 wethBal = IERC20(address(_WETH)).balanceOf(address(this));
-        // Calculate value of NFT in WETH using SLP reserves values
-        uint256 ethPerNFT = _estimateFloor();
-        // Determine total amount of WETH required using _tokenIds length
-        uint256 totalRequiredWETH = ethPerNFT * length;
-        // NOTE: Add 1 wei per token if _tokenIds > 1 to resolve Uniswap V2 liquidity issues
-        if (length > 1) { totalRequiredWETH += (length * 1); }
-        // Check if contract has enough WETH on hand
-        if (wethBal < totalRequiredWETH) {
-            // If not, check to see if WETH + ETH balance is enough
-            if ((wethBal + address(this).balance) < totalRequiredWETH) {
-                // If there just isn't enough ETH, revert
-                revert InsufficientBalance();
-            } else {
-                // If there is enough WETH + ETH, wrap the necessary ETH
-                uint256 amountToWrap = totalRequiredWETH - wethBal;
-                wrap(amountToWrap);
+        // Retrieve NFTs held
+        uint256[] memory inventory = nftsHeld;
+        uint256 length = inventory.length;
+        // Process adding liquidity using as many NFTs as the ETH balance allows
+        if (length > 0) {
+            // Retrieve NFTX LP price for 1 full inventory token
+            uint256 floorPrice = _estimateFloor();
+            // Determine how many NFTs we can afford to add to LP
+            // Add 1 to floorPrice in order to resolve liquidity rounding issue
+            uint256 addQty = balance / ((floorPrice + 1) * length);
+            // Add NFTs to LP if we can afford to
+            if (addQty > 0) {
+                // Calculate exact ETH to add to LP with NFTs
+                uint256 requiredEth = addQty * (floorPrice + 1);
+                // Iterate through inventory for as many NFTs as we can afford to add
+                uint256[] memory tokenIds = new uint256[](addQty);
+                for (uint256 i = length; i > length - addQty;) {
+                    tokenIds[i - addQty] = inventory[i - 1];
+                    nftsHeld.pop();
+                    unchecked { --i; }
+                }
+                // Stake NFTs and ETH, approvals were given in initializeVault()
+                _NFTX_STAKING_ZAP.addLiquidity721(_vaultId, tokenIds, 1, requiredEth);
             }
         }
-        // Add NFT + WETH liquidity to NFTX and return amount of SLP deposited
-        return (_NFTX_STAKING_ZAP.addLiquidity721(_vaultId, _tokenIds, 1, totalRequiredWETH));
-    }
 
-    // Add any amount of ETH, WETH, and NFTX Inventory tokens to NFTWETH SLP
-    function deepenLiquidity(
-        uint112 _eth, 
-        uint112 _weth, 
-        uint112 _nftxInv
-    ) public onlyOwner returns (uint256) {
-        // Verify balance of all inputs
-        if (address(this).balance < _eth ||
-            IERC20(address(_WETH)).balanceOf(address(this)) < _weth ||
-            _nftxInventory.balanceOf(address(this)) < _nftxInv
-        ) { revert InsufficientBalance(); }
-        // Wrap any ETH into WETH
-        if (_eth > 0) {
-            wrap(uint256(_eth));
-            _weth += _eth;
-            _eth = 0;
-        }
-        // Supply any ratio of WETH and NFTX Inventory tokens in return for max SLP tokens
-        uint256 liquidity = _liqHelper.swapAndAddLiquidityTokenAndToken(
+        // Deepen LP with remaining ETH
+        // Retrieve updated balance in case any NFTs were added to LP
+        balance = IERC20(address(_WETH)).balanceOf(address(this));
+        // Process rebalancing any remaining ETH and inventory tokens to add to LP
+        _liqHelper.swapAndAddLiquidityTokenAndToken(
             address(_WETH),
-            address(_nftxInventory),
-            _weth,
-            _nftxInv,
+            address(nftxInventory),
+            uint112(balance),
+            uint112(nftxInventory.balanceOf(address(this))),
             1,
             address(this)
         );
-        return (liquidity);
-    }
 
-    // Stake NFTWETH SLP in NFTX
-    function stakeLiquidity() public onlyOwner returns (uint256 liquidity) {
-        // Check available SLP balance
-        liquidity = _nftxLiquidity.balanceOf(address(this));
-        // Stake entire balance
+        // Stake liquidity tokens
+        uint256 liquidity = nftxLiquidity.balanceOf(address(this));
         _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
     }
 
-    // Claim NFTWETH SLP rewards
-    function claimRewards(address _recipient) public onlyOwner {
-        // Retrieve balance to diff against
-        uint256 invTokenBal = _nftxInventory.balanceOf(address(this));
+    // Claim NFTWETH SLP yield
+    function claimYield(address _recipient) public onlyOwner {
         // Claim SLP rewards
-        _NFTX_LIQUIDITY_STAKING.claimRewards(_vaultId);
-        // Determine reward amount
-        uint256 reward = _nftxInventory.balanceOf(address(this)) - invTokenBal;
-        // Send 50% to recipient, remainder stored in contract
-        _nftxInventory.transfer(_recipient, reward / 2);
+        _NFTX_LIQUIDITY_STAKING.claimRewards(vaultId);
+        // Determine yield amount
+        uint256 yield = nftxInventory.balanceOf(address(this));
+        // If no yield, end execution to save gas
+        if (yield == 0) { return; }
+        // Send 50% to recipient
+        uint256 amount = yield / 2;
+        nftxInventory.transfer(_recipient, amount);
+        // Send yield remainder and any ETH to LP
+        _liqHelper.swapAndAddLiquidityTokenAndToken(
+            address(_WETH),
+            address(nftxInventory),
+            uint112(IERC20(address(_WETH)).balanceOf(address(this))),
+            uint112(yield - amount),
+            1,
+            address(this)
+        );
     }
 
-    // Compound NFTWETH SLP rewards, optionally include ETH/WETH
-    function compoundRewards(uint112 _eth, uint112 _weth) public onlyOwner {
-        // Retrieve balance to diff against
-        uint112 invTokenBal = uint112(_nftxInventory.balanceOf(address(this)));
+    // Compound all NFTWETH SLP yield into LP
+    function compoundYield() public onlyOwner {
         // Claim SLP rewards
-        _NFTX_LIQUIDITY_STAKING.claimRewards(_vaultId);
-        // Determine reward amount
-        uint112 reward = uint112(_nftxInventory.balanceOf(address(this))) - invTokenBal;
-        if (_eth == 0 && _weth == 0 && reward == 0) { revert ZeroValues(); }
-        // Deepen liquidity with entire reward amount and any optional ETH/WETH balance
-        deepenLiquidity(_eth, _weth, reward);
+        _NFTX_LIQUIDITY_STAKING.claimRewards(vaultId);
+        // Determine yield amount
+        uint256 yield = nftxInventory.balanceOf(address(this));
+        // If no yield, end execution to save gas
+        if (yield == 0) { return; }
+        // Send yield and any ETH to LP
+        _liqHelper.swapAndAddLiquidityTokenAndToken(
+            address(_WETH),
+            address(nftxInventory),
+            uint112(IERC20(address(_WETH)).balanceOf(address(this))),
+            uint112(yield),
+            1,
+            address(this)
+        );
     }
 
     // Rescue tokens from vault and/or liq helper (use address(0) for ETH)
     function rescueERC20(address _token, address _to) public onlyOwner returns (uint256) {
         // If address(0), rescue ETH from liq helper to vault
         if (_token == address(0)) {
-            uint256 balance = address(this).balance;
             _liqHelper.emergencyWithdrawEther();
-            return (address(this).balance - balance);
+            uint256 balance = address(this).balance;
+            if (balance > 0) { _WETH.deposit{ value: balance }(); }
+            return (balance);
         }
-        // If _nftxInventory or _nftxLiquidity, rescue from liq helper to vault
+        // If nftxInventory or nftxLiquidity, rescue from liq helper to vault
         else if (_token == address(_WETH) || 
-            _token == address(_nftxInventory) ||
-            _token == address(_nftxLiquidity)) {
+            _token == address(nftxInventory) ||
+            _token == address(nftxLiquidity)) {
                 uint256 balance = IERC20(_token).balanceOf(address(this));
                 _liqHelper.emergencyWithdrawErc20(_token);
                 uint256 balanceDiff = IERC20(_token).balanceOf(address(this)) - balance;
@@ -242,11 +241,20 @@ contract AlignmentVault is Ownable, ERC721TokenReceiver {
         uint256 _tokenId
     ) public onlyOwner {
         // If _address is for the aligned collection, revert
-        if (address(_erc721) == _address) { revert AlignedAsset(); }
+        if (address(erc721) == _address) { revert AlignedAsset(); }
         // Otherwise, attempt to send to recipient
         else { IERC721(_address).transferFrom(address(this), _to, _tokenId); }
     }
 
     // Receive logic
-    receive() external payable { }
+    receive() external payable { _WETH.deposit{ value: msg.value }(); }
+    function onERC721Received(
+        address,
+        address,
+        uint256 _tokenId,
+        bytes calldata
+    ) external virtual returns (bytes4) {
+        nftsHeld.push(_tokenId);
+        return AlignmentVault.onERC721Received.selector;
+    }
 }
