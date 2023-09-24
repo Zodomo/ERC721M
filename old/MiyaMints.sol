@@ -4,6 +4,48 @@ interface IFactory {
     function ownershipUpdate(address _newOwner) external;
 }
 
+error LockedAsset();
+error NotLocked();
+error NotUnlocked();
+error NotBurnable();
+error InsufficientLock();
+error InsufficientAssets();
+
+event ConfigureMintBurn(
+    address indexed asset,
+    bool indexed status,
+    int64 indexed allocation,
+    uint256 tokenBalance,
+    uint256 price
+);
+event ConfigureMintLock(
+    address indexed asset,
+    bool indexed status,
+    int64 indexed allocation,
+    uint40 timelock,
+    uint256 tokenBalance,
+    uint256 price
+);
+event ConfigureMintWithAssets(
+    address indexed asset,
+    bool indexed status,
+    int64 indexed allocation,
+    uint256 tokenBalance,
+    uint256 price
+);
+
+struct MinterInfo {
+    uint256 amount;
+    uint256[] amounts;
+    uint40[] timelocks;
+}
+
+mapping(address => MintInfo) public mintBurnInfo;
+mapping(address => MintInfo) public mintLockInfo;
+mapping(address => MintInfo) public mintWithAssetsInfo;
+mapping(address => mapping(address => MinterInfo)) public burnerInfo;
+mapping(address => mapping(address => MinterInfo)) public lockerInfo;
+
 // NOTE: Must set factory address if factory is to be notified of ownership changes
 address public constant factory = address(0);
 

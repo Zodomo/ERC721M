@@ -25,12 +25,9 @@ interface INFTXStakingZap {
 
 contract AlignmentVault is Ownable, Initializable {
 
-    error InsufficientBalance();
     error InvalidVaultId();
     error AlignedAsset();
     error NoNFTXVault();
-    error ZeroAddress();
-    error ZeroValues();
 
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
@@ -171,29 +168,16 @@ contract AlignmentVault is Ownable, Initializable {
         uint256 yield = nftxInventory.balanceOf(address(this));
         // If no yield, end execution to save gas
         if (yield == 0) { return; }
-        // Send 50% to recipient
-        uint256 amount = yield / 2;
-        nftxInventory.transfer(_recipient, amount);
-        // Send yield remainder and any ETH to LP
-        _liqHelper.swapAndAddLiquidityTokenAndToken(
-            address(_WETH),
-            address(nftxInventory),
-            uint112(IERC20(address(_WETH)).balanceOf(address(this))),
-            uint112(yield - amount),
-            1,
-            address(this)
-        );
-    }
-
-    // Compound all NFTWETH SLP yield into LP
-    function compoundYield() public onlyOwner {
-        // Claim SLP rewards
-        _NFTX_LIQUIDITY_STAKING.claimRewards(vaultId);
-        // Determine yield amount
-        uint256 yield = nftxInventory.balanceOf(address(this));
-        // If no yield, end execution to save gas
-        if (yield == 0) { return; }
-        // Send yield and any ETH to LP
+        // If recipient is provided, send them 50%
+        if (_recipient != address(0)) {
+            uint256 amount;
+            unchecked {
+                amount = yield / 2;
+                yield -= amount;
+            }
+            nftxInventory.transfer(_recipient, amount);
+        }
+        // Send all remaining yield to LP
         _liqHelper.swapAndAddLiquidityTokenAndToken(
             address(_WETH),
             address(nftxInventory),

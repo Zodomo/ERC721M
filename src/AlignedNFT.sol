@@ -16,14 +16,13 @@ interface IAsset {
 
 abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
 
-    error NotAligned();
-    error TransferFailed();
+    error BadInput();
     error Overdraft();
+    error Blacklisted();
     error ZeroAddress();
     error ZeroQuantity();
-    error BadInput();
+    error TransferFailed();
     error RoyaltiesDisabled();
-    error Blacklisted();
 
     event RoyaltyDisabled();
     event VaultDeployed(address indexed vault);

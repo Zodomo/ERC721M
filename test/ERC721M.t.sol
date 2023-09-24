@@ -50,7 +50,6 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         int64 supply;
         int64 allocated;
         bool active;
-        uint40 timelock;
         uint256 tokenBalance;
         uint256 mintPrice;
     }
@@ -218,14 +217,12 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             int64 supply,
             int64 allocated,
             bool active,
-            uint40 timelock,
             uint256 tokenBalance,
             uint256 mintPrice
         ) = template.mintDiscountInfo(address(testToken));
         require(supply == 10, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
-        require(timelock == 0, "timelock error");
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
@@ -235,14 +232,12 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             int64 supply,
             int64 allocated,
             bool active,
-            uint40 timelock,
             uint256 tokenBalance,
             uint256 mintPrice
         ) = template.mintDiscountInfo(address(testNFT));
         require(supply == 10, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
-        require(timelock == 0, "timelock error");
         require(tokenBalance == 2, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
@@ -295,14 +290,12 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             int64 supply,
             int64 allocated,
             bool active,
-            uint40 timelock,
             uint256 tokenBalance,
             uint256 mintPrice
         ) = template.mintDiscountInfo(address(testToken));
         require(supply == 0, "supply error");
         require(allocated == 0, "allocated error");
         require(active == false, "active error");
-        require(timelock == 0, "timelock error");
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
@@ -323,14 +316,12 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             int64 supply,
             int64 allocated,
             bool active,
-            uint40 timelock,
             uint256 tokenBalance,
             uint256 mintPrice
         ) = template.mintDiscountInfo(address(testToken));
         require(supply == 8, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
-        require(timelock == 0, "timelock error");
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
@@ -351,14 +342,12 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             int64 supply,
             int64 allocated,
             bool active,
-            uint40 timelock,
             uint256 tokenBalance,
             uint256 mintPrice
         ) = template.mintDiscountInfo(address(testNFT));
         require(supply == 8, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
-        require(timelock == 0, "timelock error");
         require(tokenBalance == 2, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }

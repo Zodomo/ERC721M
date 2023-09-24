@@ -12,58 +12,26 @@ contract ERC721M is AlignedNFT {
     using SafeCastLib for uint256;
     using SafeCastLib for int256;
 
-    error URILocked();
-    error Underflow();
-    error MintClosed();
-    error CapReached();
-    error LockedAsset();
-    error CapExceeded();
-    error SpecialExceeded();
-
-    error NotERC721();
     error NotActive();
     error NotMinted();
-    error NotLocked();
-    error NotUnlocked();
-    error NotBurnable();
-
-    error InsufficientLock();
-    error InsufficientAssets();
+    error URILocked();
+    error Underflow();
+    error NotAligned();
+    error MintClosed();
+    error CapReached();
+    error CapExceeded();
+    error SpecialExceeded();
     error InsufficientPayment();
     error InsufficientBalance();
 
     event URILock();
     event URIChanged(string indexed baseURI);
     event PriceUpdated(uint256 indexed price);
-    event TokensLocked(address indexed token, uint256 indexed amount);
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
-    event AssetsUnlocked(address indexed asset, uint256 indexed unlocks, uint256 indexed total);
     
     event NormalMint(address indexed to, uint64 indexed amount);
     event DiscountedMint(address indexed asset, address indexed to, uint64 indexed amount);
     event ConfigureMintDiscount(
-        address indexed asset,
-        bool indexed status,
-        int64 indexed allocation,
-        uint256 tokenBalance,
-        uint256 price
-    );
-    event ConfigureMintBurn(
-        address indexed asset,
-        bool indexed status,
-        int64 indexed allocation,
-        uint256 tokenBalance,
-        uint256 price
-    );
-    event ConfigureMintLock(
-        address indexed asset,
-        bool indexed status,
-        int64 indexed allocation,
-        uint40 timelock,
-        uint256 tokenBalance,
-        uint256 price
-    );
-    event ConfigureMintWithAssets(
         address indexed asset,
         bool indexed status,
         int64 indexed allocation,
@@ -75,14 +43,8 @@ contract ERC721M is AlignedNFT {
         int64 supply;
         int64 allocated;
         bool active;
-        uint40 timelock;
         uint256 tokenBalance;
         uint256 mintPrice;
-    }
-    struct MinterInfo {
-        uint256 amount;
-        uint256[] amounts;
-        uint40[] timelocks;
     }
 
     bool public uriLocked;
@@ -95,11 +57,6 @@ contract ERC721M is AlignedNFT {
     uint256 public price;
 
     mapping(address => MintInfo) public mintDiscountInfo;
-    mapping(address => MintInfo) public mintBurnInfo;
-    mapping(address => MintInfo) public mintLockInfo;
-    mapping(address => MintInfo) public mintWithAssetsInfo;
-    mapping(address => mapping(address => MinterInfo)) public burnerInfo;
-    mapping(address => mapping(address => MinterInfo)) public lockerInfo;
 
     modifier mintable(uint256 _amount) {
         if (!mintOpen) { revert MintClosed(); }
@@ -258,7 +215,6 @@ contract ERC721M is AlignedNFT {
         else if (owner() != msg.sender) { revert Unauthorized(); }
         vault.claimYield(_to);
     }
-    function compoundYield() public virtual onlyOwner { vault.compoundYield(); }
     function rescueERC20(address _asset, address _to) public virtual onlyOwner { vault.rescueERC20(_asset, _to); }
     function rescueERC721(
         address _asset,
