@@ -48,7 +48,7 @@ contract AlignmentVault is Ownable, Initializable {
     uint256[] public nftsHeld;
 
     constructor() payable { }
-    function initializeVault(address _erc721, uint256 _vaultId) external initializer {
+    function initialize(address _erc721, uint256 _vaultId) external initializer {
         // Initialize contract ownership
         _initializeOwner(msg.sender);
         // Set target NFT collection for alignment
@@ -78,7 +78,7 @@ contract AlignmentVault is Ownable, Initializable {
         }
         // Derive nftxInventory token contract and vaultId if necessary
         address _nftxInventory = _NFTX_VAULT_FACTORY.vaultsForAsset(_erc721)[index];
-        if (_vaultId == 0) { vaultId = INFTXVault(_nftxInventory).vaultId(); }
+        if (_vaultId == 0) { vaultId = uint64(INFTXVault(_nftxInventory).vaultId()); }
         nftxInventory = IERC20(_nftxInventory);
         // Derive nftxLiquidity LP contract
         nftxLiquidity = IERC20(UniswapV2Library.pairFor(

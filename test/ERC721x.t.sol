@@ -13,12 +13,15 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     IERC721 public nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
 
     function setUp() public {
-        template = new ERC721M(
+        template = new ERC721M();
+        template.initialize(
             2000,
             500,
             address(nft),
-            address(42),
             address(this),
+            0
+        );
+        template.initializeMetadata(
             "ERC721M Test",
             "ERC721M",
             "https://miya.wtf/api/",
@@ -26,6 +29,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             100,
             0.01 ether
         );
+        template.changeFundsRecipient(address(42));
         hevm.deal(address(this), 1000 ether);
     }
 

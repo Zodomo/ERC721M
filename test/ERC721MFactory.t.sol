@@ -13,7 +13,7 @@ contract FactoryTest is DSTestPlus {
         factory = new ERC721MFactory(address(this));
     }
 
-    function deployContract() public returns (address) {
+    /*function deployContract() public returns (address) {
         uint16 allocation = 5000; // 50%
         uint16 royaltyFee = 500; // 5%
         address alignedNFT = 0x5Af0D9827E0c53E4799BB226655A1de152A425a5; // Milady Maker
@@ -78,5 +78,5 @@ contract FactoryTest is DSTestPlus {
         address collection = deployContract();
         require(collection != address(0), "deployment failure");
         require(IERC721M(collection).maxSupply() == 420, "maxSupply read error");
-    }
+    }*/
 }

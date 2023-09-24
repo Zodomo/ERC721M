@@ -68,12 +68,15 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     MockERC721 public testNFT;
 
     function setUp() public {
-        template = new ERC721M(
+        template = new ERC721M();
+        template.initialize(
             2000,
             500,
             address(nft),
-            address(42),
             address(this),
+            0
+        );
+        template.initializeMetadata(
             "ERC721M Test",
             "ERC721M",
             "https://miya.wtf/api/",
@@ -81,6 +84,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             100,
             0.01 ether
         );
+        template.changeFundsRecipient(address(42));
         hevm.deal(address(this), 1000 ether);
         testToken = new MockERC20("Test Token", "TEST", 18);
         testToken.mint(address(this), 100 ether);
@@ -407,48 +411,6 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         uint64 amount = 10;
         uint256 payment = 0.25 ether;
         template.mintDiscount{ value: payment }(asset, to, amount);
-    }
-
-    function testWrap(uint256 _amount) public {
-        hevm.assume(_amount < 10 ether);
-        (bool success, ) = payable(address(template.vault())).call{ value: _amount }("");
-        require(success);
-        template.wrap(_amount);
-    }
-    function testAddLiquidity() public {
-        hevm.assume(nft.ownerOf(42) > address(0));
-        hevm.startPrank(nft.ownerOf(42));
-        nft.approve(address(this), 42);
-        nft.transferFrom(nft.ownerOf(42), address(template.vault()), 42);
-        hevm.stopPrank();
-        uint256[] memory tokenId = new uint256[](1);
-        tokenId[0] = 42;
-        (bool success, ) = payable(address(template.vault())).call{ value: 50 ether }("");
-        require(success);
-        template.wrap(50 ether);
-        template.addLiquidity(tokenId);
-    }
-    function testDeepenLiquidity() public {
-        (bool success, ) = payable(address(template.vault())).call{ value: 2 ether }("");
-        require(success);
-        template.wrap(1 ether);
-        template.deepenLiquidity(1 ether, 1 ether, 0);
-    }
-    function testStakeLiquidity() public {
-        (bool success, ) = payable(address(template.vault())).call{ value: 2 ether }("");
-        require(success);
-        template.wrap(1 ether);
-        template.deepenLiquidity(1 ether, 1 ether, 0);
-        template.stakeLiquidity();
-    }
-    function testClaimRewardsCallable() public {
-        template.claimRewards(address(this));
-    }
-    function testCompoundRewards() public {
-        (bool success, ) = payable(address(template.vault())).call{ value: 2 ether }("");
-        require(success);
-        template.wrap(1 ether);
-        template.compoundRewards(1 ether, 1 ether);
     }
 
     function testRescueERC20() public {

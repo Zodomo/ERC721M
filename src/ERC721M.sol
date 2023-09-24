@@ -91,7 +91,7 @@ contract ERC721M is AlignedNFT {
     string private _symbol;
     string private _baseURI;
     string private _contractURI;
-    uint256 public immutable maxSupply;
+    uint256 public maxSupply;
     uint256 public price;
 
     mapping(address => MintInfo) public mintDiscountInfo;
@@ -108,41 +108,48 @@ contract ERC721M is AlignedNFT {
         _;
     }
 
-    constructor(
+    constructor() payable { }
+    function initialize(
         uint16 _allocation, // Percentage of mint funds allocated to aligned collection in basis points (500 - 10000)
         uint16 _royaltyFee, // Percentage of royalty fees in basis points (0 - 10000)
         address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
-        address _fundsRecipient, // Recipient of non-aligned mint funds
         address _owner, // Collection owner
+        uint256 _vaultId // NFTX vault ID
+    ) external initializer {
+        // Ensure allocation is within proper range before storing
+        if (_allocation < 500) { revert NotAligned(); } // Require allocation be >= 5%
+        if (_allocation > 10000) { revert BadInput(); } // Require allocation be <= 100%
+        allocation = _allocation;
+        // Prevent bad royalty fee before initializing
+        if (_royaltyFee > 10000) { revert BadInput(); }
+        // Manually set for non-existent tokenId 0 to use as init status
+        _setTokenRoyalty(0, _owner, uint96(_royaltyFee));
+        _setDefaultRoyalty(_owner, uint96(_royaltyFee));
+        // Initialize contract ownership
+        _initializeOwner(_owner);
+        // Set remaining storage variables
+        alignedNft = _alignedNFT;
+        fundsRecipient = _owner;
+        // Deploy AlignmentVault and initialize
+        vault = new AlignmentVault();
+        vault.initialize(_alignedNFT, _vaultId);
+    }
+    function initializeMetadata(
         string memory __name, // NFT collection name
         string memory __symbol, // NFT collection symbol/ticker
         string memory __baseURI, // Base URI for NFT metadata, preferably on IPFS
         string memory __contractURI, // Full Contract URI for NFT collection information
         uint256 _maxSupply, // Max mint supply
         uint256 _price // Standard mint price
-    ) AlignedNFT(
-        _alignedNFT,
-        _fundsRecipient,
-        _allocation
-    )
-    payable {
-        // Prevent bad royalty fee
-        if (_royaltyFee > 10000) { revert BadInput(); }
-        // Set all relevant metadata and contract configurations
+    ) external reinitializer(2) {
         _name = __name;
         _symbol = __symbol;
         _baseURI = __baseURI;
         _contractURI = __contractURI;
         maxSupply = _maxSupply;
         price = _price;
-
-        _initializeOwner(_owner);
-        // Initialize royalties
-        _setTokenRoyalty(0, _fundsRecipient, uint96(_royaltyFee));
-        // Configure default royalties for contract owner
-        _setDefaultRoyalty(_fundsRecipient, uint96(_royaltyFee));
     }
-
+    function disableInitializers() external onlyOwner { _disableInitializers(); }
 
     // ERC721 Metadata
     function name() public view virtual override returns (string memory) { return (_name); }
@@ -243,8 +250,15 @@ contract ERC721M is AlignedNFT {
         }
     }
 
-    function claimRewards(address _recipient) public virtual onlyOwner { vault.claimRewards(_recipient); }
-    function compoundRewards(uint112 _eth, uint112 _weth) public virtual onlyOwner { vault.compoundRewards(_eth, _weth); }
+    function alignLiquidity() public virtual { vault.alignLiquidity(); }
+    function claimYield(address _to) public virtual onlyOwner {
+        // If renounced, send to fundsRecipient only
+        if (owner() == address(0)) { _to = fundsRecipient; }
+        // Otherwise apply ownership check
+        else if (owner() != msg.sender) { revert Unauthorized(); }
+        vault.claimYield(_to);
+    }
+    function compoundYield() public virtual onlyOwner { vault.compoundYield(); }
     function rescueERC20(address _asset, address _to) public virtual onlyOwner { vault.rescueERC20(_asset, _to); }
     function rescueERC721(
         address _asset,
@@ -254,7 +268,7 @@ contract ERC721M is AlignedNFT {
     function withdrawFunds(address _to, uint256 _amount) public virtual {
         // If renounced, send to fundsRecipient only
         if (owner() == address(0)) { _to = fundsRecipient; }
-        // Otherwise, apply ownership check
+        // Otherwise apply ownership check
         else if (owner() != msg.sender) { revert Unauthorized(); }
         _withdrawFunds(_to, _amount);
     }

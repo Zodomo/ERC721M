@@ -11,7 +11,12 @@ contract TestingAlignedNFT is AlignedNFT {
         address _nft,
         address _fundsRecipient,
         uint16 _allocation
-    ) AlignedNFT(_nft, _fundsRecipient, _allocation) { _initializeOwner(msg.sender); }
+    ) { 
+        _initializeOwner(msg.sender);
+        alignedNft = _nft;
+        fundsRecipient = _fundsRecipient;
+        allocation = _allocation;
+    }
 
     function name() public pure override returns (string memory) { return ("AlignedNFT Test"); }
     function symbol() public pure override returns (string memory) { return ("ANFTTest"); }

@@ -17,7 +17,7 @@ contract ERC721MFactory is Ownable {
     mapping(address => address) public contractDeployers;
 
     // Deploy MiyaMints flavored ERC721M collection
-    function deploy(
+    /*function deploy(
         uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
         uint16 _royaltyFee, // Percentage in basis points (0 - 10000) for royalty fee
         address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
@@ -47,5 +47,5 @@ contract ERC721MFactory is Ownable {
         
         emit Deployed(msg.sender, address(deployment));
         return address(deployment);
-    }
+    }*/
 }

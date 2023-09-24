@@ -14,7 +14,7 @@ interface IAsset {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
-abstract contract AlignedNFT is ERC721x, ERC2981 {
+abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
 
     error NotAligned();
     error TransferFailed();
@@ -30,28 +30,15 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
     event AllocationSet(uint256 indexed allocation);
     event BlacklistConfigured(address[] indexed blacklist);
 
-    AlignmentVault public immutable vault; // Smart contract wallet for allocated funds
-    address public immutable alignedNft; // Aligned NFT collection
+    AlignmentVault public vault; // Smart contract wallet for allocated funds
+    address public alignedNft; // Aligned NFT collection
     address public fundsRecipient; // Recipient of remaining non-aligned mint funds
     uint256 public totalAllocated; // Total amount of ETH allocated to aligned collection
     uint32 public totalSupply; // Current number of tokens minted
-    uint16 public immutable allocation; // Percentage of mint funds to align 500 - 10000, 1500 = 15.00%
+    uint16 public allocation; // Percentage of mint funds to align 500 - 10000, 1500 = 15.00%
     address[] public blacklistedAssets; // Tokens and NFTs that are blacklisted
 
-    constructor(
-        address _nft,
-        address _fundsRecipient,
-        uint16 _allocation
-    ) payable {
-        if (_allocation < 500) { revert NotAligned(); } // Require allocation be >= 5%
-        if (_allocation > 10000) { revert BadInput(); } // Require allocation be <= 100%
-        allocation = _allocation; // Store it in contract
-        emit AllocationSet(_allocation);
-        alignedNft = _nft; // Store aligned NFT collection address in contract
-        vault = new AlignmentVault(_nft); // Create vault focused on aligned NFT
-        emit VaultDeployed(address(vault));
-        fundsRecipient = _fundsRecipient; // Set recipient of allocated funds
-    }
+    constructor() payable { }
 
     // ERC165 override to include ERC2981
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721x) returns (bool) {
