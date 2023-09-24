@@ -67,7 +67,7 @@ contract UniswapV2LiquidityHelper is Ownable {
     // The ratio between ether and tokenB can be any.
     // Approve enough amount of tokenB to this contract before calling this function.
     // Uniswap pair WETH-tokenB must exist.
-    function swapAndAddLiquidityEthAndToken(
+    /*function swapAndAddLiquidityEthAndToken(
         address tokenAddressB,
         uint112 amountB,
         uint112 minLiquidityOut,
@@ -93,7 +93,7 @@ contract UniswapV2LiquidityHelper is Ownable {
             uint(minLiquidityOut),
             to
         );
-    }
+    }*/
 
     // add as more tokens as possible to a Uniswap pair
     function _swapAndAddLiquidity(

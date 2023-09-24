@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "solady/utils/FixedPointMathLib.sol";
-import "openzeppelin/interfaces/IERC20.sol";
-import "openzeppelin/interfaces/IERC721.sol";
+import "manual-library/ProjectLibrary.sol";
 import "./ERC721x.sol";
 import "./ERC2981.sol";
 import "./AlignmentVault.sol";
@@ -25,7 +23,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
     error ZeroQuantity();
     error BadInput();
     error RoyaltiesDisabled();
-    error BlacklistedCollector();
+    error Blacklisted();
 
     event RoyaltyDisabled();
     event VaultDeployed(address indexed vault);
@@ -105,20 +103,16 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
 
     // Blacklist function to prevent mints to holders of prohibited collections
     function _enforceBlacklist(address _minter, address _recipient) internal {
+        address[] memory blacklist = blacklistedAssets;
         uint256 count;
-        if (_minter == _recipient) {
-            for (uint256 i; i < blacklistedAssets.length;) {
-                count += IAsset(blacklistedAssets[i]).balanceOf(_minter);
-                unchecked { ++i; }
-            }
-        } else {
-            for (uint256 i; i < blacklistedAssets.length;) {
-                count += IAsset(blacklistedAssets[i]).balanceOf(_minter);
-                count += IAsset(blacklistedAssets[i]).balanceOf(_recipient);
-                unchecked { ++i; }
+        for (uint256 i; i < blacklist.length;) {
+            unchecked {
+                count += IAsset(blacklist[i]).balanceOf(_minter);
+                count += IAsset(blacklist[i]).balanceOf(_recipient);
+                ++i;
             }
         }
-        if (count > 0) { revert BlacklistedCollector(); }
+        if (count > 0) { revert Blacklisted(); }
     }
 
     // Change recipient address for non-aligned mint funds
@@ -139,8 +133,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981 {
         totalAllocated += mintAlloc;
 
         // Send tithe to AlignmentVault
-        (bool success, ) = payable(address(vault)).call{ value: mintAlloc }("");
-        if (!success) { revert TransferFailed(); }
+        payable(address(vault)).call{ value: mintAlloc }("");
 
         // Process ERC721 mints
         // totalSupply is read once externally from loop to reduce SLOADs to save gas

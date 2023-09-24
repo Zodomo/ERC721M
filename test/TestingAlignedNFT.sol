@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "../src/AlignedNFT.sol";
-import "solady/utils/LibString.sol";
 
 contract TestingAlignedNFT is AlignedNFT {
 

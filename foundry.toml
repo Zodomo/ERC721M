@@ -7,6 +7,8 @@ remappings = [
     "liquidity-helper/=lib/liquidity-helper/",
     "openzeppelin/=lib/openzeppelin-contracts/contracts/",
     "manual-tests/=lib/manual-tests/",
+    "manual-library/=lib/manual-library/",
 ]
+ignored_error_codes = [2018, 5667, 9302, 1878]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

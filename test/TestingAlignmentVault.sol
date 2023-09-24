@@ -15,7 +15,6 @@ contract TestingAlignmentVault is AlignmentVault {
     function view_liqHelper() public view returns (address) { return (address(_liqHelper)); }
 
     function view_NFTX_VAULT_FACTORY() public pure returns (address) { return (address(_NFTX_VAULT_FACTORY)); }
-    function view_NFTX_INVENTORY_STAKING() public pure returns (address) { return (address(_NFTX_INVENTORY_STAKING)); }
     function view_NFTX_LIQUIDITY_STAKING() public pure returns (address) { return (address(_NFTX_LIQUIDITY_STAKING)); }
     function view_NFTX_STAKING_ZAP() public pure returns (address) { return (address(_NFTX_STAKING_ZAP)); }
 
@@ -24,22 +23,9 @@ contract TestingAlignmentVault is AlignmentVault {
     function view_nftxLiquidity() public view returns (address) { return (address(_nftxLiquidity)); }
     function view_vaultId() public view returns (uint256) { return (_vaultId); }
 
-    function call_sortTokens(address _tokenA, address _tokenB) public pure returns (address, address) {
-        (address token0, address token1) = _sortTokens(_tokenA, _tokenB);
-        return (token0, token1);
-    }
-    function call_pairFor(address _tokenA, address _tokenB) public pure returns (address) {
-        return (_pairFor(_tokenA, _tokenB));
-    }
     function call_estimateFloor() public view returns (uint256) { return _estimateFloor(); }
-    /* function call_decodeSeaportCalldata(bytes calldata data) internal pure returns (
-        OrderStructs.AdvancedOrder memory order,
-        OrderStructs.ETHListingParams memory params,
-        OrderStructs.Fee[] memory fees
-    ) { return decodeSeaportCalldata(data); } */
     
     function execute_wrap(uint256 _eth) public { wrap(_eth); }
-    function execute_addInventory(uint256[] calldata _tokenIds) public { addInventory(_tokenIds); }
     function execute_addLiquidity(uint256[] calldata _tokenIds) public { addLiquidity(_tokenIds); }
     function execute_deepenLiquidity(
         uint112 _eth,
