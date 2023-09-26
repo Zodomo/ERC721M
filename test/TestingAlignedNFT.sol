@@ -16,6 +16,8 @@ contract TestingAlignedNFT is AlignedNFT {
         alignedNft = _nft;
         fundsRecipient = _fundsRecipient;
         allocation = _allocation;
+        vault = new AlignmentVault();
+        vault.initialize(_nft, 0);
     }
 
     function name() public pure override returns (string memory) { return ("AlignedNFT Test"); }

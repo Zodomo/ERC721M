@@ -65,6 +65,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     UnburnableERC20 public testUnburnableToken;
     FakeSendERC20 public testFakeSendToken;
     MockERC721 public testNFT;
+    IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     function setUp() public {
         template = new ERC721M();
@@ -310,7 +311,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(template.balanceOf(address(this)) == 2, "balance error");
         require(template.ownerOf(1) == address(this), "owner/tokenId error");
         require(template.ownerOf(2) == address(this), "owner/tokenId error");
-        require(address(template.vault()).balance == 0.01 ether, "vault balance error");
+        require(wethToken.balanceOf(address(template.vault())) == 0.01 ether, "vault balance error");
         require(address(template).balance == 0.04 ether, "contract balance error");
         (
             int64 supply,
@@ -336,7 +337,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(template.balanceOf(address(this)) == 2, "balance error");
         require(template.ownerOf(1) == address(this), "owner/tokenId error");
         require(template.ownerOf(2) == address(this), "owner/tokenId error");
-        require(address(template.vault()).balance == 0.01 ether, "vault balance error");
+        require(wethToken.balanceOf(address(template.vault())) == 0.01 ether, "vault balance error");
         require(address(template).balance == 0.04 ether, "contract balance error");
         (
             int64 supply,
@@ -439,11 +440,11 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     function testReceive() public {
         (bool success, ) = payable(address(template)).call{ value: 1 ether }("");
         require(success);
-        require(address(template.vault()).balance == 1 ether);
+        require(wethToken.balanceOf(address(template.vault())) == 1 ether);
     }
     function testFallback() public {
         IFallback(address(template)).doesntExist{ value: 1 ether }(420);
-        require(address(template.vault()).balance == 1 ether);
+        require(wethToken.balanceOf(address(template.vault())) == 1 ether);
     }
     function test_processPayment() public {
         template.openMint();

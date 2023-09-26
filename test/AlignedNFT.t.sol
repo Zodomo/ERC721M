@@ -16,6 +16,7 @@ contract AlignedNFTTest is DSTestPlus, ERC721Holder  {
     TestingAlignedNFT alignedNFT_LA;
     MockERC20 testToken;
     MockERC721 testNFT;
+    IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     function setUp() public {
         // High alignment / low dev cut
@@ -83,10 +84,10 @@ contract AlignedNFTTest is DSTestPlus, ERC721Holder  {
         hevm.assume(_amount != 0);
         hevm.assume(_amount <= 10000);
         hevm.assume(_payment > 1 gwei);
-        hevm.assume(_payment < 0.01 ether);
+        hevm.assume(_payment < 1 ether);
         alignedNFT_HA.execute_mint{ value: _payment }(address(this), _amount);
         uint256 allocation = FixedPointMathLib.fullMulDivUp(4200, _payment, 10000);
-        require(address(alignedNFT_HA.vault()).balance == allocation);
+        require(wethToken.balanceOf(address(alignedNFT_HA.vault())) == allocation);
     }
     function test_mint_teamAllocation(uint256 _amount, uint256 _payment) public {
         hevm.assume(_amount != 0);

@@ -125,7 +125,7 @@ contract AlignmentVault is Ownable, Initializable {
             uint256 floorPrice = _estimateFloor();
             // Determine how many NFTs we can afford to add to LP
             // Add 1 to floorPrice in order to resolve liquidity rounding issue
-            uint256 addQty = balance / ((floorPrice + 1) * length);
+            uint256 addQty = balance / (floorPrice + 1);
             // Add NFTs to LP if we can afford to
             if (addQty > 0) {
                 // Calculate exact ETH to add to LP with NFTs
@@ -195,16 +195,14 @@ contract AlignmentVault is Ownable, Initializable {
             _liqHelper.emergencyWithdrawEther();
             uint256 balance = address(this).balance;
             if (balance > 0) { _WETH.deposit{ value: balance }(); }
-            return (balance);
+            return (0);
         }
         // If nftxInventory or nftxLiquidity, rescue from liq helper to vault
         else if (_token == address(_WETH) || 
             _token == address(nftxInventory) ||
             _token == address(nftxLiquidity)) {
-                uint256 balance = IERC20(_token).balanceOf(address(this));
                 _liqHelper.emergencyWithdrawErc20(_token);
-                uint256 balanceDiff = IERC20(_token).balanceOf(address(this)) - balance;
-                return (balanceDiff);
+                return (0);
         }
         // If any other token, rescue from liq helper and/or vault and send to recipient
         else {

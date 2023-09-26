@@ -220,7 +220,7 @@ contract UniswapV2LiquidityHelper is Ownable {
     }
 
     function emergencyWithdrawEther() external onlyOwner {
-        payable(msg.sender).transfer(address(this).balance);
+        payable(msg.sender).call{ value: address(this).balance }("");
     }
 
     function emergencyWithdrawErc20(address tokenAddress) external onlyOwner {
