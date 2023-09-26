@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
+import "forge-std/console2.sol";
 import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
 import "openzeppelin/proxy/utils/Initializable.sol";
@@ -125,45 +126,52 @@ contract AlignmentVault is Ownable, Initializable {
             uint256 floorPrice = _estimateFloor();
             // Determine how many NFTs we can afford to add to LP
             // Add 1 to floorPrice in order to resolve liquidity rounding issue
-            uint256 addQty = balance / (floorPrice + 1);
+            uint256 afford = balance / (floorPrice + 1);
+            uint256 addQty;
+            (afford >= length) ? addQty = length : addQty = afford;
             // Add NFTs to LP if we can afford to
             if (addQty > 0) {
                 // Calculate exact ETH to add to LP with NFTs
                 uint256 requiredEth = addQty * (floorPrice + 1);
                 // Iterate through inventory for as many NFTs as we can afford to add
                 uint256[] memory tokenIds = new uint256[](addQty);
-                for (uint256 i = length; i > length - addQty;) {
-                    tokenIds[i - addQty] = inventory[i - 1];
+                for (uint256 i; i < addQty;) {
+                    tokenIds[i] = inventory[length - addQty + i];
                     nftsHeld.pop();
-                    unchecked { --i; }
+                    unchecked { ++i; }
                 }
                 // Stake NFTs and ETH, approvals were given in initializeVault()
                 _NFTX_STAKING_ZAP.addLiquidity721(_vaultId, tokenIds, 1, requiredEth);
+                // Update cached balance after adding NFTs to vault
+                balance = IERC20(address(_WETH)).balanceOf(address(this));
             }
         }
 
-        // Deepen LP with remaining ETH
-        // Retrieve updated balance in case any NFTs were added to LP
-        balance = IERC20(address(_WETH)).balanceOf(address(this));
-        // Process rebalancing any remaining ETH and inventory tokens to add to LP
-        _liqHelper.swapAndAddLiquidityTokenAndToken(
-            address(_WETH),
-            address(nftxInventory),
-            uint112(balance),
-            uint112(nftxInventory.balanceOf(address(this))),
-            1,
-            address(this)
-        );
+        // Cache nftxInventory to prevent a double SLOAD
+        uint256 nftxInvBal = nftxInventory.balanceOf(address(this));
+        // Process rebalancing remaining ETH and inventory tokens (if any) to add to LP
+        if (balance > 0 || nftxInvBal > 0) {
+            _liqHelper.swapAndAddLiquidityTokenAndToken(
+                address(_WETH),
+                address(nftxInventory),
+                uint112(balance),
+                uint112(nftxInvBal),
+                1,
+                address(this)
+            );
+        }
 
-        // Stake liquidity tokens
+        // Stake liquidity tokens, if any
         uint256 liquidity = nftxLiquidity.balanceOf(address(this));
-        _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
+        if (liquidity > 0) { _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity); }
     }
 
     // Claim NFTWETH SLP yield
     function claimYield(address _recipient) public onlyOwner {
+        // Cache vaultId to save gas
+        uint256 _vaultId = vaultId;
         // Claim SLP rewards
-        _NFTX_LIQUIDITY_STAKING.claimRewards(vaultId);
+        _NFTX_LIQUIDITY_STAKING.claimRewards(_vaultId);
         // Determine yield amount
         uint256 yield = nftxInventory.balanceOf(address(this));
         // If no yield, end execution to save gas
@@ -186,6 +194,10 @@ contract AlignmentVault is Ownable, Initializable {
             1,
             address(this)
         );
+
+        // Stake that LP
+        uint256 liquidity = nftxLiquidity.balanceOf(address(this));
+        _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
     }
 
     // Rescue tokens from vault and/or liq helper (use address(0) for ETH)
