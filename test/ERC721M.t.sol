@@ -60,6 +60,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     }
 
     ERC721M public template;
+    ERC721M public manualInit;
     IERC721 public nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
     MockERC20 public testToken;
     UnburnableERC20 public testUnburnableToken;
@@ -96,6 +97,68 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         testNFT.safeMint(address(this), 1);
         testNFT.safeMint(address(this), 2);
         testNFT.safeMint(address(this), 3);
+    }
+
+    function testInitialize() public {
+        manualInit = new ERC721M();
+        manualInit.initialize(
+            2000,
+            500,
+            address(nft),
+            address(this),
+            0
+        );
+        manualInit.initializeMetadata(
+            "ERC721M Test",
+            "ERC721M",
+            "https://miya.wtf/api/",
+            "https://miya.wtf/contract.json",
+            100,
+            0.01 ether
+        );
+        manualInit.disableInitializers();
+        require(manualInit.allocation() == 2000);
+        (address recipient, uint256 royalty) = manualInit.royaltyInfo(0, 1 ether);
+        require(recipient == address(this));
+        require(royalty == 0.05 ether);
+        require(manualInit.alignedNft() == address(nft));
+        require(manualInit.owner() == address(this));
+        require(keccak256(abi.encodePacked(manualInit.name())) == keccak256(abi.encodePacked("ERC721M Test")));
+        require(keccak256(abi.encodePacked(manualInit.symbol())) == keccak256(abi.encodePacked("ERC721M")));
+        require(keccak256(abi.encodePacked(manualInit.baseURI())) == keccak256(abi.encodePacked("https://miya.wtf/api/")));
+        require(keccak256(abi.encodePacked(manualInit.contractURI())) == keccak256(abi.encodePacked("https://miya.wtf/contract.json")));
+        require(manualInit.maxSupply() == 100);
+        require(manualInit.price() == 0.01 ether);
+    }
+    function testInitialize_NotAligned() public {
+        manualInit = new ERC721M();
+        hevm.expectRevert(ERC721M.NotAligned.selector);
+        manualInit.initialize(
+            250,
+            500,
+            address(nft),
+            address(this),
+            0
+        );
+    }
+    function testInitialize_BadInput() public {
+        manualInit = new ERC721M();
+        hevm.expectRevert(AlignedNFT.BadInput.selector);
+        manualInit.initialize(
+            12345,
+            500,
+            address(nft),
+            address(this),
+            0
+        );
+        hevm.expectRevert(AlignedNFT.BadInput.selector);
+        manualInit.initialize(
+            2000,
+            42069,
+            address(nft),
+            address(this),
+            0
+        );
     }
 
     function testName() public view {
@@ -403,6 +466,33 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.mintDiscount{ value: payment }(asset, to, amount);
     }
 
+    function testAlignLiquidityNoLiquidity() public {
+        template.alignLiquidity();
+    }
+    function testAlignLiquidityETH() public {
+        address vault = address(template.vault());
+        hevm.deal(vault, 1 ether);
+        require(address(vault).balance == 1 ether);
+        template.alignLiquidity();
+        require(address(vault).balance == 0, "eth balance error");
+    }
+    // TODO: alignLiquidity with assets sent to contract
+
+    function testClaimYieldNone() public {
+        template.claimYield(address(this));
+    }
+    function testCompoundYieldNone() public {
+        template.claimYield(address(0));
+    }
+    function testClaimYieldNoneRenounced() public {
+        template.renounceOwnership();
+        template.claimYield(address(this));
+    }
+    function testCompoundYieldNoneRenounced() public {
+        template.renounceOwnership();
+        template.claimYield(address(0));
+    }
+
     function testRescueERC20() public {
         testToken.transfer(address(template.vault()), 1 ether);
         template.rescueERC20(address(testToken), address(42));
@@ -445,6 +535,17 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     function testFallback() public {
         IFallback(address(template)).doesntExist{ value: 1 ether }(420);
         require(wethToken.balanceOf(address(template.vault())) == 1 ether);
+    }
+    function testOnERC721Received() public {
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.safeTransferFrom(nft.ownerOf(42), address(template), 42);
+        hevm.stopPrank();
+        require(nft.ownerOf(42) == address(template.vault()), "NFT redirection failed");
+    }
+    function testOnERC721Received_UnwantedNFT() public {
+        hevm.expectRevert(ERC721M.UnwantedNFT.selector);
+        testNFT.safeTransferFrom(address(this), address(template), 1);
     }
     function test_processPayment() public {
         template.openMint();

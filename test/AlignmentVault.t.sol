@@ -345,4 +345,15 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(success);
         require(wethToken.balanceOf(address(alignmentVault)) == 1 ether);
     }
+    function testOnERC721Received() public {
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.safeTransferFrom(nft.ownerOf(42), address(alignmentVault), 42);
+        hevm.stopPrank();
+        require(nft.ownerOf(42) == address(alignmentVault), "NFT redirection failed");
+    }
+    function testOnERC721Received_UnwantedNFT() public {
+        hevm.expectRevert(AlignmentVault.UnwantedNFT.selector);
+        testNFT.safeTransferFrom(address(this), address(alignmentVault), 1);
+    }
 }

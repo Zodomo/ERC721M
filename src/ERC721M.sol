@@ -20,6 +20,7 @@ contract ERC721M is AlignedNFT {
     error MintClosed();
     error CapReached();
     error CapExceeded();
+    error UnwantedNFT();
     error SpecialExceeded();
     error InsufficientPayment();
     error InsufficientBalance();
@@ -209,12 +210,18 @@ contract ERC721M is AlignedNFT {
 
     function alignLiquidity() public virtual { vault.alignLiquidity(); }
     function claimYield(address _to) public virtual onlyOwner {
+        // Allow for compounding regardless of all edge cases
+        if (_to == address(0)) {
+            vault.claimYield(address(0));
+            return;
+        }
         // If renounced, send to fundsRecipient only
         if (owner() == address(0)) { _to = fundsRecipient; }
         // Otherwise apply ownership check
         else if (owner() != msg.sender) { revert Unauthorized(); }
         vault.claimYield(_to);
     }
+    // TODO: rescue funds from ERC721M contract with vault handling
     function rescueERC20(address _asset, address _to) public virtual onlyOwner { vault.rescueERC20(_asset, _to); }
     function rescueERC721(
         address _asset,
@@ -237,4 +244,15 @@ contract ERC721M is AlignedNFT {
     // Attempt to use funds sent directly to contract on mints if open and mintable, else send to vault
     receive() external payable { _processPayment(); }
     fallback() external payable { _processPayment(); }
+    // Forward aligned NFTs to vault, revert if sent other NFTs
+    function onERC721Received(
+        address,
+        address,
+        uint256 _tokenId,
+        bytes calldata
+    ) external virtual returns (bytes4) {
+        if (msg.sender == alignedNft) { IERC721(alignedNft).safeTransferFrom(address(this), address(vault), _tokenId); }
+        else { revert UnwantedNFT(); }
+        return AlignmentVault.onERC721Received.selector;
+    }
 }

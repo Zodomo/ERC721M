@@ -29,6 +29,7 @@ contract AlignmentVault is Ownable, Initializable {
     error InvalidVaultId();
     error AlignedAsset();
     error NoNFTXVault();
+    error UnwantedNFT();
 
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
@@ -242,13 +243,15 @@ contract AlignmentVault is Ownable, Initializable {
 
     // Receive logic
     receive() external payable { _WETH.deposit{ value: msg.value }(); }
+    // Log only aligned NFTs stored in the contract, revert if sent other NFTs
     function onERC721Received(
         address,
         address,
         uint256 _tokenId,
         bytes calldata
     ) external virtual returns (bytes4) {
-        nftsHeld.push(_tokenId);
+        if (msg.sender == address(erc721)) { nftsHeld.push(_tokenId); }
+        else { revert UnwantedNFT(); }
         return AlignmentVault.onERC721Received.selector;
     }
 }
