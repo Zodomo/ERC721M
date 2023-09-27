@@ -6,14 +6,14 @@ import "../src/IERC721M.sol";
 import "../src/ERC721MFactory.sol";
 
 contract FactoryTest is DSTestPlus {
-
+/*
     ERC721MFactory public factory;
 
     function setUp() public {
         factory = new ERC721MFactory(address(this));
     }
 
-    /*function deployContract() public returns (address) {
+    function deployContract() public returns (address) {
         uint16 allocation = 5000; // 50%
         uint16 royaltyFee = 500; // 5%
         address alignedNFT = 0x5Af0D9827E0c53E4799BB226655A1de152A425a5; // Milady Maker

@@ -208,26 +208,60 @@ contract ERC721M is AlignedNFT {
         }
     }
 
+    // Check contract inventory for unsafe transfers of aligned NFTs that didn't get directed to vault
+    function fixInventory(uint256[] memory _tokenIds) public {
+        // Iterate through passed array
+        for (uint256 i; i < _tokenIds.length;) {
+            // Try check for ownership used in case token has been burned
+            try IERC721(alignedNft).ownerOf(_tokenIds[i]) {
+                // If this address is the owner, send it to the vault
+                if (IERC721(alignedNft).ownerOf(_tokenIds[i]) == address(this)) {
+                    IERC721(alignedNft).safeTransferFrom(address(this), address(vault), _tokenIds[i]);
+                }
+            } catch { }
+            unchecked { ++i; }
+        }
+    }
+
+    function checkInventory(uint256[] memory _tokenIds) public virtual { vault.checkInventory(_tokenIds); }
     function alignLiquidity() public virtual { vault.alignLiquidity(); }
-    function claimYield(address _to) public virtual onlyOwner {
-        // Allow for compounding regardless of all edge cases
-        if (_to == address(0)) {
-            vault.claimYield(address(0));
+    function claimYield(address _to) public virtual {
+        // Cache owner address to save gas
+        address owner = owner();
+        // If not renounced and caller is owner, process claim
+        if (owner != address(0) && owner == msg.sender) {
+            vault.claimYield(_to);
             return;
         }
         // If renounced, send to fundsRecipient only
-        if (owner() == address(0)) { _to = fundsRecipient; }
+        if (owner == address(0)) {
+            vault.claimYield(fundsRecipient);
+            return;
+        }
         // Otherwise apply ownership check
-        else if (owner() != msg.sender) { revert Unauthorized(); }
-        vault.claimYield(_to);
+        if (owner != msg.sender) { revert Unauthorized(); }
     }
-    // TODO: rescue funds from ERC721M contract with vault handling
-    function rescueERC20(address _asset, address _to) public virtual onlyOwner { vault.rescueERC20(_asset, _to); }
+    
+    function rescueERC20(address _asset, address _to) public virtual onlyOwner {
+        uint256 balance = IERC20(_asset).balanceOf(address(this));
+        if (balance > 0) { IERC20(_asset).transfer(_to, balance); }
+        vault.rescueERC20(_asset, _to);
+    }
     function rescueERC721(
         address _asset,
         address _to,
         uint256 _tokenId
-    ) public virtual onlyOwner { vault.rescueERC721(_asset, _to, _tokenId); }
+    ) public virtual onlyOwner {
+        if (_asset == alignedNft && IERC721(_asset).ownerOf(_tokenId) == address(this)) {
+            IERC721(_asset).safeTransferFrom(address(this), address(vault), _tokenId);
+            return;
+        }
+        if (IERC721(_asset).ownerOf(_tokenId) == address(this)) {
+            IERC721(_asset).transferFrom(address(this), _to, _tokenId);
+            return;
+        }
+        vault.rescueERC721(_asset, _to, _tokenId);
+    }
     function withdrawFunds(address _to, uint256 _amount) public virtual {
         // If renounced, send to fundsRecipient only
         if (owner() == address(0)) { _to = fundsRecipient; }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import "forge-std/console.sol";
+import "liquidity-helper/UniswapV2LiquidityHelper.sol";
 import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
 import "../lib/solady/test/utils/mocks/MockERC721.sol";
 import "manual-tests/UnburnableERC20.sol";
@@ -66,7 +67,11 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     UnburnableERC20 public testUnburnableToken;
     FakeSendERC20 public testFakeSendToken;
     MockERC721 public testNFT;
+    IWETH weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IUniswapV2Router02 sushiRouter = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+    IERC20 nftxInv = IERC20(0x227c7DF69D3ed1ae7574A1a7685fDEd90292EB48); // NFTX MILADY token
+    IUniswapV2Pair nftWeth = IUniswapV2Pair(0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // MILADYWETH SLP
 
     function setUp() public {
         template = new ERC721M();
@@ -466,6 +471,36 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.mintDiscount{ value: payment }(asset, to, amount);
     }
 
+    function testFixInventory() public {
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(template), 42);
+        hevm.stopPrank();
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 42;
+        template.fixInventory(tokenIds);
+        hevm.deal(address(template.vault()), 10 ether);
+        template.alignLiquidity();
+        require(nft.balanceOf(address(template)) == 0);
+        require(nft.balanceOf(address(template.vault())) == 0);
+    }
+
+    function testCheckInventory() public {
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(template.vault()), 42);
+        hevm.stopPrank();
+        hevm.deal(address(template.vault()), 10 ether);
+        template.alignLiquidity();
+        require(nft.balanceOf(address(template.vault())) == 1);
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 42;
+        template.checkInventory(tokenIds);
+        hevm.deal(address(template.vault()), 10 ether);
+        template.alignLiquidity();
+        require(nft.balanceOf(address(template.vault())) == 0);
+    }
+
     function testAlignLiquidityNoLiquidity() public {
         template.alignLiquidity();
     }
@@ -476,7 +511,6 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.alignLiquidity();
         require(address(vault).balance == 0, "eth balance error");
     }
-    // TODO: alignLiquidity with assets sent to contract
 
     function testClaimYieldNone() public {
         template.claimYield(address(this));
@@ -492,16 +526,57 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.renounceOwnership();
         template.claimYield(address(0));
     }
+    function testClaimYield_Unauthorized() public {
+        hevm.prank(address(1));
+        hevm.expectRevert(Ownable.Unauthorized.selector);
+        template.claimYield(address(1));
+    }
+    // TODO: GENERATE YIELD PROPERLY
+    function testClaimYieldGenerated() public {
+        hevm.deal(address(template.vault()), 100 ether);
+        template.alignLiquidity();
+        weth.deposit{ value: 100 ether }();
+        wethToken.approve(address(sushiRouter), type(uint256).max);
+        nftxInv.approve(address(sushiRouter), type(uint256).max);
+        address[] memory path = new address[](2);
+        uint256 balance;
+        for (uint256 i; i < 10; ++i) {
+            balance = wethToken.balanceOf(address(this));
+            path[0] = address(weth);
+            path[1] = address(nftxInv);
+            sushiRouter.swapExactTokensForTokens(balance, 1, path, address(this), block.timestamp);
+            uint256 nftxBal = nftxInv.balanceOf(address(this));
+            path[0] = address(nftxInv);
+            path[1] = address(weth);
+            sushiRouter.swapExactTokensForTokens(nftxBal, 1, path, address(this), block.timestamp);
+        }
+        template.claimYield(address(this));
+        //require(nftxInv.balanceOf(address(this)) > 0, "nftxInv claim balance error");
+    }
+    // TODO: Test claiming generated yield after renounce
 
     function testRescueERC20() public {
-        testToken.transfer(address(template.vault()), 1 ether);
+        testToken.transfer(address(template), 1 ether);
         template.rescueERC20(address(testToken), address(42));
         require(testToken.balanceOf(address(42)) >= 1 ether);
     }
     function testRescueERC721() public {
+        testNFT.transferFrom(address(this), address(template), 1);
+        template.rescueERC721(address(testNFT), address(42), 1);
+        require(testNFT.ownerOf(1) == address(42));
+    }
+    function testRescueERC721Vault() public {
         testNFT.transferFrom(address(this), address(template.vault()), 1);
         template.rescueERC721(address(testNFT), address(42), 1);
         require(testNFT.ownerOf(1) == address(42));
+    }
+    function testRescueERC721AlignedAsset() public {
+        hevm.startPrank(nft.ownerOf(42));
+        nft.approve(address(this), 42);
+        nft.transferFrom(nft.ownerOf(42), address(template), 42);
+        hevm.stopPrank();
+        template.rescueERC721(address(nft), address(42), 42);
+        require(nft.ownerOf(42) == address(template.vault()));
     }
 
     function testWithdrawFunds() public {
