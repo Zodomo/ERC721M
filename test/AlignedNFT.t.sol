@@ -12,6 +12,7 @@ import "../lib/solady/test/utils/mocks/MockERC721.sol";
 
 contract AlignedNFTTest is DSTestPlus, ERC721Holder  {
 
+    AlignmentVault public vaultImplementation = new AlignmentVault();
     TestingAlignedNFT alignedNFT_HA;
     TestingAlignedNFT alignedNFT_LA;
     MockERC20 testToken;
@@ -19,6 +20,12 @@ contract AlignedNFTTest is DSTestPlus, ERC721Holder  {
     IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     function setUp() public {
+        bytes memory creationCode = hevm.getCode("AlignmentVaultFactory.sol");
+        hevm.etch(address(7777777), abi.encodePacked(creationCode, abi.encode(address(this), address(vaultImplementation))));
+        (bool success, bytes memory runtimeBytecode) = address(7777777).call{value: 0}("");
+        require(success, "StdCheats deployCodeTo(string,bytes,uint256,address): Failed to create runtime bytecode.");
+        hevm.etch(address(7777777), runtimeBytecode);
+
         // High alignment / low dev cut
         alignedNFT_HA = new TestingAlignedNFT(
             0x5Af0D9827E0c53E4799BB226655A1de152A425a5, // Milady NFT

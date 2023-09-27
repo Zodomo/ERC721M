@@ -96,7 +96,7 @@ contract AlignmentVault is Ownable, Initializable {
         IERC20(address(_WETH)).approve(address(_liqHelper), type(uint256).max);
         nftxInventory.approve(address(_liqHelper), type(uint256).max);
     }
-    function disableInitializers() external onlyOwner { _disableInitializers(); }
+    function disableInitializers() external { _disableInitializers(); }
     
     // Use NFTX SLP for aligned NFT as floor price oracle and for determining WETH required for adding liquidity
     // Using NFTX as a price oracle is intentional, as Chainlink/others weren't sufficient or too expensive

@@ -8,6 +8,7 @@ import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
 import "../lib/solady/test/utils/mocks/MockERC721.sol";
 import "manual-tests/UnburnableERC20.sol";
 import "manual-tests/FakeSendERC20.sol";
+import "../src/AlignmentVault.sol";
 import "../src/ERC721M.sol";
 
 interface IFallback {
@@ -60,6 +61,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         uint40[] timelocks;
     }
 
+    AlignmentVault public vaultImplementation = new AlignmentVault();
     ERC721M public template;
     ERC721M public manualInit;
     IERC721 public nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
@@ -74,6 +76,12 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     IUniswapV2Pair nftWeth = IUniswapV2Pair(0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // MILADYWETH SLP
 
     function setUp() public {
+        bytes memory creationCode = hevm.getCode("AlignmentVaultFactory.sol");
+        hevm.etch(address(7777777), abi.encodePacked(creationCode, abi.encode(address(this), address(vaultImplementation))));
+        (bool success, bytes memory runtimeBytecode) = address(7777777).call{value: 0}("");
+        require(success, "StdCheats deployCodeTo(string,bytes,uint256,address): Failed to create runtime bytecode.");
+        hevm.etch(address(7777777), runtimeBytecode);
+
         template = new ERC721M();
         template.initialize(
             2000,

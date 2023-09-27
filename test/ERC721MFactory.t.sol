@@ -5,13 +5,21 @@ import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import "../src/ERC721M.sol";
 import "../src/IERC721M.sol";
 import "../src/ERC721MFactory.sol";
+import "../src/AlignmentVault.sol";
 
 contract FactoryTest is DSTestPlus {
 
+    AlignmentVault public vaultImplementation = new AlignmentVault();
     ERC721M public implementation;
     ERC721MFactory public factory;
 
     function setUp() public {
+        bytes memory creationCode = hevm.getCode("AlignmentVaultFactory.sol");
+        hevm.etch(address(7777777), abi.encodePacked(creationCode, abi.encode(address(this), address(vaultImplementation))));
+        (bool success, bytes memory runtimeBytecode) = address(7777777).call{value: 0}("");
+        require(success, "StdCheats deployCodeTo(string,bytes,uint256,address): Failed to create runtime bytecode.");
+        hevm.etch(address(7777777), runtimeBytecode);
+
         implementation = new ERC721M();
         factory = new ERC721MFactory(address(this), address(implementation));
     }
