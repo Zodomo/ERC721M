@@ -267,6 +267,42 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(nftxInv.balanceOf(address(alignmentVault)) == 0, "nftxInv balance error");
         require(nftWeth.balanceOf(address(alignmentVault)) == 0, "nftWeth balance error");
     }
+
+    function testCheckInventoryNone() public {
+        uint256[] memory tokenIds = new uint256[](3);
+        tokenIds[0] = 69;
+        tokenIds[1] = 420;
+        tokenIds[2] = 710;
+        alignmentVault.checkInventory(tokenIds);
+        hevm.expectRevert(bytes(""));
+        alignmentVault.nftsHeld(0);
+    }
+    function testCheckInventory() public {
+        hevm.startPrank(nft.ownerOf(69));
+        nft.approve(address(this), 69);
+        nft.transferFrom(nft.ownerOf(69), address(alignmentVault), 69);
+        hevm.stopPrank();
+        hevm.startPrank(nft.ownerOf(420));
+        nft.approve(address(this), 420);
+        nft.transferFrom(nft.ownerOf(420), address(alignmentVault), 420);
+        hevm.stopPrank();
+        hevm.startPrank(nft.ownerOf(710));
+        nft.approve(address(this), 710);
+        nft.transferFrom(nft.ownerOf(710), address(alignmentVault), 710);
+        hevm.stopPrank();
+        hevm.expectRevert(bytes(""));
+        alignmentVault.nftsHeld(0);
+        uint256[] memory tokenIds = new uint256[](3);
+        tokenIds[0] = 69;
+        tokenIds[1] = 420;
+        tokenIds[2] = 710;
+        alignmentVault.checkInventory(tokenIds);
+        require(alignmentVault.nftsHeld(0) == 69);
+        require(alignmentVault.nftsHeld(1) == 420);
+        require(alignmentVault.nftsHeld(2) == 710);
+        hevm.expectRevert(bytes(""));
+        alignmentVault.nftsHeld(3);
+    }
     
     function test_rescueERC20_ETH() public {
         address liqHelper = alignmentVault.view_liqHelper();

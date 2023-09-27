@@ -33,17 +33,17 @@ contract AlignmentVault is Ownable, Initializable {
     IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
     IUniswapV2Router02 constant internal _SUSHI_V2_ROUTER = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
-    UniswapV2LiquidityHelper internal _liqHelper;
 
     INFTXFactory constant internal _NFTX_VAULT_FACTORY = INFTXFactory(0xBE86f647b167567525cCAAfcd6f881F1Ee558216);
     INFTXLPStaking constant internal _NFTX_LIQUIDITY_STAKING = INFTXLPStaking(0x688c3E4658B5367da06fd629E41879beaB538E37);
     INFTXStakingZap constant internal _NFTX_STAKING_ZAP = INFTXStakingZap(0xdC774D5260ec66e5DD4627E1DD800Eff3911345C);
     
+    UniswapV2LiquidityHelper internal _liqHelper; // Liquidity helper used to deepen NFTX SLP with any amount of tokens
     IERC721 public erc721; // ERC721 token
     IERC20 public nftxInventory; // NFTX NFT token
     IERC20 public nftxLiquidity; // NFTX NFTWETH token
-    uint256 public vaultId;
-    uint256[] public nftsHeld;
+    uint256 public vaultId; // NFTX vault Id
+    uint256[] public nftsHeld; // Inventory of aligned erc721 NFTs stored in contract
 
     constructor() payable { }
     function initialize(address _erc721, uint256 _vaultId) external initializer {
@@ -200,7 +200,34 @@ contract AlignmentVault is Ownable, Initializable {
         _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
     }
 
-    // Rescue tokens from vault and/or liq helper (use address(0) for ETH)
+    // Check contract inventory for unsafe transfers of aligned NFTs
+    function checkInventory(uint256[] memory _tokenIds) public {
+        // Cache nftsHeld to reduce SLOADs
+        uint256[] memory inventory = nftsHeld;
+        // Iterate through passed array
+        for (uint256 i; i < _tokenIds.length;) {
+            // Try check for ownership used in case token has been burned
+            try erc721.ownerOf(_tokenIds[i]) {
+                // If this address is the owner, see if it is in nftsHeld cached array
+                if (erc721.ownerOf(_tokenIds[i]) == address(this)) {
+                    bool noticed;
+                    for (uint256 j; j < inventory.length;) {
+                        // If NFT is found, end loop and iterate to next tokenId
+                        if (inventory[j] == _tokenIds[i]) {
+                            noticed = true;
+                            break;
+                        }
+                        unchecked { ++j; }
+                    }
+                    // If tokenId wasn't in stored array, add it
+                    if (!noticed) { nftsHeld.push(_tokenIds[i]); }
+                }
+            } catch { }
+            unchecked { ++i; }
+        }
+    }
+
+    // Rescue tokens from vault and/or liq helper (use address(0) for ETH), returns 0 for aligned assets
     function rescueERC20(address _token, address _to) public onlyOwner returns (uint256) {
         // If address(0), rescue ETH from liq helper to vault
         if (_token == address(0)) {
@@ -209,7 +236,7 @@ contract AlignmentVault is Ownable, Initializable {
             if (balance > 0) { _WETH.deposit{ value: balance }(); }
             return (0);
         }
-        // If nftxInventory or nftxLiquidity, rescue from liq helper to vault
+        // If WETH, nftxInventory, or nftxLiquidity, rescue from liq helper to vault
         else if (_token == address(_WETH) || 
             _token == address(nftxInventory) ||
             _token == address(nftxLiquidity)) {
