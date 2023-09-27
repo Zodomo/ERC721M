@@ -10,5 +10,5 @@ contract FakeSendERC20 is MockERC20 {
         uint8 _decimals
     ) MockERC20(_name, _symbol, _decimals) {}
 
-    function transferFrom(address _from, address _to, uint256 _amount) public override returns (bool) { return true; }
+    function transferFrom(address, address, uint256) public pure override returns (bool) { return true; }
 }

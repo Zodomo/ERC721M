@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "./AlignmentVault.sol";
 import "solady/utils/LibClone.sol";
+import "solady/auth/Ownable.sol";
 
 interface IInitialize {
     function initialize(address _erc721, address _owner, uint256 _vaultId) external;
