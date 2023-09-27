@@ -37,17 +37,12 @@ contract FactoryTest is DSTestPlus {
         uint256 price = 0.01 ether;
         uint256 vaultId = 392;
 
+        factory.preconfigure(name, symbol, baseURI, contractURI, maxSupply, price);
         address deployment = factory.deploy(
             allocation,
             royaltyFee,
             alignedNFT,
             owner,
-            name,
-            symbol,
-            baseURI,
-            contractURI,
-            maxSupply,
-            price,
             vaultId
         );
         require(factory.contractDeployers(deployment) == address(this), "deployer mapping error");
@@ -68,17 +63,12 @@ contract FactoryTest is DSTestPlus {
         uint256 vaultId = 392;
         bytes32 salt = bytes32("42069");
 
+        factory.preconfigure(name, symbol, baseURI, contractURI, maxSupply, price);
         address deployment = factory.deployDeterministic(
             allocation,
             royaltyFee,
             alignedNFT,
             owner,
-            name,
-            symbol,
-            baseURI,
-            contractURI,
-            maxSupply,
-            price,
             vaultId,
             salt
         );
