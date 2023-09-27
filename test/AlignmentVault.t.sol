@@ -357,7 +357,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     }
 
     function test_rescueERC721() public {
-        testNFT.safeTransferFrom(address(this), address(alignmentVault), 1);
+        testNFT.transferFrom(address(this), address(alignmentVault), 1);
         require(testNFT.ownerOf(1) == address(alignmentVault));
         alignmentVault.rescueERC721(address(testNFT), address(42), 1);
         require(testNFT.ownerOf(1) == address(42));

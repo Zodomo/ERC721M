@@ -189,7 +189,7 @@ contract AlignmentVault is Ownable, Initializable {
         _liqHelper.swapAndAddLiquidityTokenAndToken(
             address(_WETH),
             address(nftxInventory),
-            uint112(IERC20(address(_WETH)).balanceOf(address(this))),
+            0,
             uint112(yield),
             1,
             address(this)
