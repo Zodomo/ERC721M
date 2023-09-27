@@ -37,8 +37,6 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     uint16 public allocation; // Percentage of mint funds to align 500 - 10000, 1500 = 15.00%
     address[] public blacklistedAssets; // Tokens and NFTs that are blacklisted
 
-    constructor() payable { }
-
     // ERC165 override to include ERC2981
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721x) returns (bool) {
         return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
