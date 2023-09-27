@@ -2,7 +2,26 @@
 pragma solidity ^0.8.20;
 
 import "./ERC721M.sol";
-import "solady/src/utils/LibClone.sol";
+import "solady/utils/LibClone.sol";
+
+interface IInitialize {
+    function initialize(
+        uint16 _allocation, // Percentage of mint funds allocated to aligned collection in basis points (500 - 10000)
+        uint16 _royaltyFee, // Percentage of royalty fees in basis points (0 - 10000)
+        address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
+        address _owner, // Collection owner
+        uint256 _vaultId // NFTX vault ID
+    ) external;
+    function initializeMetadata(
+        string memory __name, // NFT collection name
+        string memory __symbol, // NFT collection symbol/ticker
+        string memory __baseURI, // Base URI for NFT metadata, preferably on IPFS
+        string memory __contractURI, // Full Contract URI for NFT collection information
+        uint256 _maxSupply, // Max mint supply
+        uint256 _price // Standard mint price
+    ) external;
+    function disableInitializers() external;
+}
 
 // This is a WIP contract
 // Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@proton.me
@@ -11,42 +30,58 @@ contract ERC721MFactory is Ownable {
 
     event Deployed(address indexed deployer, address indexed collection);
 
-    constructor(address _owner) payable {
+    address public implementation;
+
+    constructor(address _owner, address _implementation) payable {
         _initializeOwner(_owner);
+        implementation = _implementation;
     }
 
     mapping(address => address) public contractDeployers;
 
     // Deploy MiyaMints flavored ERC721M collection
-    /*function deploy(
+    function deploy(
         uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
         uint16 _royaltyFee, // Percentage in basis points (0 - 10000) for royalty fee
         address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
-        address _fundsRecipient, // Recipient of non-aligned mint funds
         address _owner, // Contract owner, manually specified for clarity
         string memory __name, // NFT collection name
         string memory __symbol, // NFT collection symbol/ticker
         string memory __baseURI, // Base URI for NFT metadata, preferably on IPFS
         string memory __contractURI, // Full Contract URI for NFT collection information
         uint256 _maxSupply, // Max mint supply
-        uint256 _price // Standard mint price
-    ) public returns (address addr) {
-        ERC721M deployment = new ERC721M(
-            _allocation,
-            _royaltyFee,
-            _alignedNFT,
-            _fundsRecipient,
-            _owner,
-            __name,
-            __symbol,
-            __baseURI,
-            __contractURI,
-            _maxSupply,
-            _price
-        );
-        contractDeployers[address(deployment)] = msg.sender;
-        
-        emit Deployed(msg.sender, address(deployment));
-        return address(deployment);
-    }*/
+        uint256 _price, // Standard mint price
+        uint256 _vaultId // NFTX vault ID
+    ) public returns (address deployment) {
+        deployment = LibClone.clone(implementation);
+        contractDeployers[deployment] = msg.sender;
+        emit Deployed(msg.sender, deployment);
+
+        IInitialize(deployment).initialize(_allocation, _royaltyFee, _alignedNFT, _owner, _vaultId);
+        IInitialize(deployment).initializeMetadata(__name, __symbol, __baseURI, __contractURI, _maxSupply, _price);
+        IInitialize(deployment).disableInitializers();
+    }
+
+    function deployDeterministic(
+        uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
+        uint16 _royaltyFee, // Percentage in basis points (0 - 10000) for royalty fee
+        address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
+        address _owner, // Contract owner, manually specified for clarity
+        string memory __name, // NFT collection name
+        string memory __symbol, // NFT collection symbol/ticker
+        string memory __baseURI, // Base URI for NFT metadata, preferably on IPFS
+        string memory __contractURI, // Full Contract URI for NFT collection information
+        uint256 _maxSupply, // Max mint supply
+        uint256 _price, // Standard mint price
+        uint256 _vaultId, // NFTX vault ID
+        bytes32 _salt // Used to deterministically deploy to an address of choice
+    ) public returns (address deployment) {
+        deployment = LibClone.cloneDeterministic(implementation, _salt);
+        contractDeployers[deployment] = msg.sender;
+        emit Deployed(msg.sender, deployment);
+
+        IInitialize(deployment).initialize(_allocation, _royaltyFee, _alignedNFT, _owner, _vaultId);
+        IInitialize(deployment).initializeMetadata(__name, __symbol, __baseURI, __contractURI, _maxSupply, _price);
+        IInitialize(deployment).disableInitializers();
+    }
 }

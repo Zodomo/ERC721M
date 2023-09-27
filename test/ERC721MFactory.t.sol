@@ -2,22 +2,24 @@
 pragma solidity ^0.8.20;
 
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
+import "../src/ERC721M.sol";
 import "../src/IERC721M.sol";
 import "../src/ERC721MFactory.sol";
 
 contract FactoryTest is DSTestPlus {
-/*
+
+    ERC721M public implementation;
     ERC721MFactory public factory;
 
     function setUp() public {
-        factory = new ERC721MFactory(address(this));
+        implementation = new ERC721M();
+        factory = new ERC721MFactory(address(this), address(implementation));
     }
 
     function deployContract() public returns (address) {
         uint16 allocation = 5000; // 50%
         uint16 royaltyFee = 500; // 5%
         address alignedNFT = 0x5Af0D9827E0c53E4799BB226655A1de152A425a5; // Milady Maker
-        address fundsRecipient = address(this);
         address owner = address(this);
         string memory name = "ERC721M Test";
         string memory symbol = "ERC721MTEST";
@@ -25,55 +27,76 @@ contract FactoryTest is DSTestPlus {
         string memory contractURI = "https://miyamaker.com/api/contract.json";
         uint256 maxSupply = 420;
         uint256 price = 0.01 ether;
-        address collection = factory.deploy(
-            allocation, 
-            royaltyFee, 
-            alignedNFT, 
-            fundsRecipient, 
-            owner, 
-            name, 
-            symbol, 
-            baseURI, 
-            contractURI, 
-            maxSupply, 
-            price
+        uint256 vaultId = 392;
+
+        address deployment = factory.deploy(
+            allocation,
+            royaltyFee,
+            alignedNFT,
+            owner,
+            name,
+            symbol,
+            baseURI,
+            contractURI,
+            maxSupply,
+            price,
+            vaultId
         );
-        require(factory.contractDeployers(collection) == address(this), "deployer mapping error");
-        return collection;
+        require(factory.contractDeployers(deployment) == address(this), "deployer mapping error");
+        return deployment;
+    }
+
+    function deployDeterministicContract() public returns (address) {
+        uint16 allocation = 5000; // 50%
+        uint16 royaltyFee = 500; // 5%
+        address alignedNFT = 0x5Af0D9827E0c53E4799BB226655A1de152A425a5; // Milady Maker
+        address owner = address(this);
+        string memory name = "ERC721M Test";
+        string memory symbol = "ERC721MTEST";
+        string memory baseURI = "https://miyamaker.com/api/";
+        string memory contractURI = "https://miyamaker.com/api/contract.json";
+        uint256 maxSupply = 420;
+        uint256 price = 0.01 ether;
+        uint256 vaultId = 392;
+        bytes32 salt = bytes32("42069");
+
+        address deployment = factory.deployDeterministic(
+            allocation,
+            royaltyFee,
+            alignedNFT,
+            owner,
+            name,
+            symbol,
+            baseURI,
+            contractURI,
+            maxSupply,
+            price,
+            vaultId,
+            salt
+        );
+        require(factory.contractDeployers(deployment) == address(this), "deployer mapping error");
+        return deployment;
     }
 
     function testDeploy() public {
         address collection = deployContract();
         require(collection != address(0), "deployment failure");
     }
-    function testFailDeploy_BadAddress() public {
-        uint16 allocation = 5000; // 50%
-        uint16 royaltyFee = 500; // 5%
-        address alignedNFT = 0x5af0D9826E0C53E4799BB226655a1dE152a425a5; // Bad Address
-        address fundsRecipient = address(this);
-        address owner = address(this);
-        string memory name = "ERC721M Test";
-        string memory symbol = "ERC721MTEST";
-        string memory baseURI = "https://miyamaker.com/api/";
-        string memory contractURI = "https://miyamaker.com/api/contract.json";
-        uint256 maxSupply = 420;
-        uint256 price = 0.01 ether;
-        address collection = factory.deploy(
-            allocation, 
-            royaltyFee, 
-            alignedNFT, 
-            fundsRecipient, 
-            owner, 
-            name, 
-            symbol, 
-            baseURI, 
-            contractURI, 
-            maxSupply, 
-            price
-        );
-        require(collection == address(0), "deployment went through in error");
+    function testDeployDeterministic() public {
+        address collection = deployDeterministicContract();
+        require(collection != address(0), "deployment failure");
     }
-    
+    function testMultipleDeployments() public {
+        address deploy0 = deployContract();
+        address deploy1 = deployContract();
+        address deploy2 = deployContract();
+        address deploy3 = deployContract();
+        require(deploy0 != deploy1);
+        require(deploy1 != deploy2);
+        require(deploy2 != deploy3);
+        require(deploy3 != deploy0);
+    }
+    /*
     function testPostDeployInteractions() public {
         address collection = deployContract();
         require(collection != address(0), "deployment failure");

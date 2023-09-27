@@ -107,7 +107,10 @@ contract ERC721M is AlignedNFT {
         maxSupply = _maxSupply;
         price = _price;
     }
-    function disableInitializers() external onlyOwner { _disableInitializers(); }
+    function disableInitializers() external { 
+        _disableInitializers();
+        vault.disableInitializers();
+    }
 
     // ERC721 Metadata
     function name() public view virtual override returns (string memory) { return (_name); }
