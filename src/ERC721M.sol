@@ -89,8 +89,7 @@ contract ERC721M is AlignedNFT {
         alignedNft = _alignedNFT;
         fundsRecipient = _owner;
         // Deploy AlignmentVault and initialize
-        vault = new AlignmentVault();
-        vault.initialize(_alignedNFT, _vaultId);
+        vault = IAlignmentVault(IFactory(vaultFactory).deploy(_alignedNFT, _vaultId));
     }
     function initializeMetadata(
         string memory __name, // NFT collection name
@@ -109,7 +108,6 @@ contract ERC721M is AlignedNFT {
     }
     function disableInitializers() external { 
         _disableInitializers();
-        vault.disableInitializers();
     }
 
     // ERC721 Metadata
@@ -290,6 +288,6 @@ contract ERC721M is AlignedNFT {
     ) external virtual returns (bytes4) {
         if (msg.sender == alignedNft) { IERC721(alignedNft).safeTransferFrom(address(this), address(vault), _tokenId); }
         else { revert UnwantedNFT(); }
-        return AlignmentVault.onERC721Received.selector;
+        return ERC721M.onERC721Received.selector;
     }
 }

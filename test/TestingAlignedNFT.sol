@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "../src/AlignedNFT.sol";
+import "../src/AlignmentVault.sol";
 
 contract TestingAlignedNFT is AlignedNFT {
 
@@ -16,8 +17,8 @@ contract TestingAlignedNFT is AlignedNFT {
         alignedNft = _nft;
         fundsRecipient = _fundsRecipient;
         allocation = _allocation;
-        vault = new AlignmentVault();
-        vault.initialize(_nft, 0);
+        vault = IAlignmentVault(address(new AlignmentVault()));
+        vault.initialize(_nft, msg.sender, 0);
     }
 
     function name() public pure override returns (string memory) { return ("AlignedNFT Test"); }

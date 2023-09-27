@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
+import "openzeppelin/proxy/utils/Initializable.sol";
 import "manual-library/ProjectLibrary.sol";
+import "openzeppelin/interfaces/IERC20.sol";
+import "openzeppelin/interfaces/IERC721.sol";
+import "./IAlignmentVault.sol";
 import "./ERC721x.sol";
 import "./ERC2981.sol";
-import "./AlignmentVault.sol";
 
 interface IAsset {
     function burn(uint256 tokens) external;
@@ -12,6 +15,10 @@ interface IAsset {
     function approve(address spender, uint256 tokens) external returns (bool);
     function transferFrom(address from, address to, uint256 tokens) external;
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
+}
+
+interface IFactory {
+    function deploy(address _erc721, uint256 _vaultId) external returns (address);
 }
 
 abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
@@ -29,7 +36,8 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     event AllocationSet(uint256 indexed allocation);
     event BlacklistConfigured(address[] indexed blacklist);
 
-    AlignmentVault public vault; // Smart contract wallet for allocated funds
+    address public constant vaultFactory = address(7777777);
+    IAlignmentVault public vault; // Smart contract wallet for allocated funds
     address public alignedNft; // Aligned NFT collection
     address public fundsRecipient; // Recipient of remaining non-aligned mint funds
     uint256 public totalAllocated; // Total amount of ETH allocated to aligned collection

@@ -35,7 +35,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         hevm.deal(address(this), 200 ether);
         weth.deposit{ value: 100 ether }();
         alignmentVault = new TestingAlignmentVault();
-        alignmentVault.initialize(address(nft), 0);
+        alignmentVault.initialize(address(nft), address(this), 0);
         testToken = new MockERC20("Test Token", "TEST", 18);
         testToken.mint(address(this), 100 ether);
         testNFT = new MockERC721();
@@ -49,18 +49,18 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
 
     function testManualVaultIdInitialization() public {
         alignmentVaultManual = new TestingAlignmentVault();
-        alignmentVaultManual.initialize(address(nft), 392);
+        alignmentVaultManual.initialize(address(nft), address(this), 392);
         require(alignmentVaultManual.vaultId() == 392, "vaultId error");
     }
     function testInvalidVaultId() public {
         alignmentVaultInvalid = new TestingAlignmentVault();
         hevm.expectRevert(AlignmentVault.InvalidVaultId.selector);
-        alignmentVaultInvalid.initialize(address(nft), 420);
+        alignmentVaultInvalid.initialize(address(nft), address(this), 420);
     }
     function testMissingNFTXVault() public {
         alignmentVaultInvalid = new TestingAlignmentVault();
         hevm.expectRevert(AlignmentVault.NoNFTXVault.selector);
-        alignmentVaultInvalid.initialize(address(testNFT), 420);
+        alignmentVaultInvalid.initialize(address(testNFT), address(this), 420);
     }
 
     function test_nftxInventory() public view {
@@ -79,7 +79,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     function test_estimateFloorReversedValues() public {
         address sproto = 0xEeca64ea9fCf99A22806Cd99b3d29cf6e8D54925;
         TestingAlignmentVault vaultBelowWeth = new TestingAlignmentVault();
-        vaultBelowWeth.initialize(sproto, 0);
+        vaultBelowWeth.initialize(sproto, address(this), 0);
         require(vaultBelowWeth.call_estimateFloor() > 0);
     }
 

@@ -46,9 +46,13 @@ contract AlignmentVault is Ownable, Initializable {
     uint256[] public nftsHeld; // Inventory of aligned erc721 NFTs stored in contract
 
     constructor() payable { }
-    function initialize(address _erc721, uint256 _vaultId) external initializer {
+    function initialize(
+        address _erc721,
+        address _owner,
+        uint256 _vaultId
+    ) external initializer {
         // Initialize contract ownership
-        _initializeOwner(msg.sender);
+        _initializeOwner(_owner);
         // Set target NFT collection for alignment
         erc721 = IERC721(_erc721);
         // Approve sending any NFT tokenId to NFTX Staking Zap contract
@@ -257,14 +261,14 @@ contract AlignmentVault is Ownable, Initializable {
         }
     }
     function rescueERC721(
-        address _address, 
+        address _token, 
         address _to,
         uint256 _tokenId
     ) public onlyOwner {
         // If _address is for the aligned collection, revert
-        if (address(erc721) == _address) { revert AlignedAsset(); }
+        if (address(erc721) == _token) { revert AlignedAsset(); }
         // Otherwise, attempt to send to recipient
-        else { IERC721(_address).transferFrom(address(this), _to, _tokenId); }
+        else { IERC721(_token).transferFrom(address(this), _to, _tokenId); }
     }
 
     // Receive logic

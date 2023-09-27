@@ -5,7 +5,7 @@ import "./AlignmentVault.sol";
 import "solady/utils/LibClone.sol";
 
 interface IInitialize {
-    function initialize(address _erc721, uint256 _vaultId) external;
+    function initialize(address _erc721, address _owner, uint256 _vaultId) external;
     function disableInitializers() external;
 }
 
@@ -28,7 +28,7 @@ contract AlignmentVaultFactory is Ownable {
         deployment = LibClone.clone(implementation);
         emit Deployed(msg.sender, deployment);
 
-        IInitialize(deployment).initialize(_erc721, _vaultId);
+        IInitialize(deployment).initialize(_erc721, msg.sender, _vaultId);
         IInitialize(deployment).disableInitializers();
     }
 
@@ -40,7 +40,7 @@ contract AlignmentVaultFactory is Ownable {
         deployment = LibClone.cloneDeterministic(implementation, _salt);
         emit Deployed(msg.sender, deployment);
 
-        IInitialize(deployment).initialize(_erc721, _vaultId);
+        IInitialize(deployment).initialize(_erc721, msg.sender, _vaultId);
         IInitialize(deployment).disableInitializers();
     }
 }
