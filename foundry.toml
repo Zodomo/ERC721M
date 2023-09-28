@@ -9,6 +9,6 @@ remappings = [
     "manual-tests/=lib/manual-tests/",
     "manual-library/=lib/manual-library/",
 ]
-ignored_error_codes = [9302, 1878]
+ignored_error_codes = [9302, 1878, 5574]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

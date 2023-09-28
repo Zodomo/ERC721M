@@ -132,6 +132,7 @@ contract AlignmentVault is Ownable, Initializable {
             // Add 1 to floorPrice in order to resolve liquidity rounding issue
             uint256 afford = balance / (floorPrice + 1);
             uint256 addQty;
+            // If we can afford to add more than we have, add what we have, otherwise add what we can afford
             (afford >= length) ? addQty = length : addQty = afford;
             // Add NFTs to LP if we can afford to
             if (addQty > 0) {

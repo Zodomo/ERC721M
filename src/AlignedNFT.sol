@@ -10,10 +10,7 @@ import "./ERC721x.sol";
 import "./ERC2981.sol";
 
 interface IAsset {
-    function burn(uint256 tokens) external;
     function balanceOf(address holder) external returns (uint256);
-    function approve(address spender, uint256 tokens) external returns (bool);
-    function transferFrom(address from, address to, uint256 tokens) external;
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
@@ -32,8 +29,6 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     error RoyaltiesDisabled();
 
     event RoyaltyDisabled();
-    event VaultDeployed(address indexed vault);
-    event AllocationSet(uint256 indexed allocation);
     event BlacklistConfigured(address[] indexed blacklist);
 
     address public constant vaultFactory = address(7777777);

@@ -94,10 +94,4 @@ contract FactoryTest is DSTestPlus {
         require(deploy2 != deploy3);
         require(deploy3 != deploy0);
     }
-    /*
-    function testPostDeployInteractions() public {
-        address collection = deployContract();
-        require(collection != address(0), "deployment failure");
-        require(IERC721M(collection).maxSupply() == 420, "maxSupply read error");
-    }*/
 }
