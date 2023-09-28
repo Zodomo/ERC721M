@@ -5,7 +5,6 @@ import "./IERC2981.sol";
 
 // Sourced from / inspired by https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/common/ERC2981.sol
 // Modified it to implement features and work with Solady and the ERC165 override scheme of this project
-
 abstract contract ERC2981 is IERC2981 {
 
     error ExceedsDenominator();

@@ -8,8 +8,7 @@ pragma solidity ^0.8.20;
  *    -"-"-
  */
 
- // Sourced from / inspired by https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/interfaces/IERC721x.sol
-
+// Sourced from / inspired by https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/interfaces/IERC721x.sol
 interface IERC721x {
 
 	/**

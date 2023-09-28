@@ -5,7 +5,6 @@ import "solady/auth/Ownable.sol";
 import "./IERC721x.sol";
 
 // Sourced from / inspired by https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/LockRegistry.sol
-
 abstract contract LockRegistry is Ownable, IERC721x {
 
 	error ArrayLengthMismatch();

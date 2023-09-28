@@ -18,6 +18,10 @@ interface IFactory {
     function deploy(address _erc721, uint256 _vaultId) external returns (address);
 }
 
+/**
+ * @title AlignedNFT
+ * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
+ */
 abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
 
     error BadInput();

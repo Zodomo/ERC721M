@@ -23,6 +23,10 @@ interface INFTXStakingZap {
     function addLiquidity721(uint256 vaultId, uint256[] calldata ids, uint256 minWethIn, uint256 wethIn) external returns (uint256);
 }
 
+/**
+ * @title AlignmentVault
+ * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
+ */
 contract AlignmentVault is Ownable, Initializable {
 
     error InvalidVaultId();
@@ -262,6 +266,7 @@ contract AlignmentVault is Ownable, Initializable {
             return (balance);
         }
     }
+    // Retrieve non-aligned NFTs, but retain aligned NFTs
     function rescueERC721(
         address _token, 
         address _to,

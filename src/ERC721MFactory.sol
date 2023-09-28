@@ -23,9 +23,10 @@ interface IInitialize {
     function disableInitializers() external;
 }
 
-// This is a WIP contract
-// Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@proton.me
-// https://github.com/Zodomo/ERC721M
+/**
+ * @title ERC721MFactory
+ * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
+ */
 contract ERC721MFactory is Ownable {
 
     event Deployed(address indexed deployer, address indexed collection);
@@ -50,11 +51,14 @@ contract ERC721MFactory is Ownable {
         implementation = _implementation;
     }
 
+    // Update implementation address for new clones
+    // NOTE: Does not update implementation of prior clones
     function updateImplementation(address _implementation) external virtual onlyOwner {
         if (_implementation == implementation) { revert(); }
         implementation = _implementation;
     }
 
+    // Due to stack limitations, a deployer must configure metadata prior to the deployment function call
     function preconfigure(
         string memory _name, // NFT collection name
         string memory _symbol, // NFT collection symbol/ticker
@@ -73,7 +77,7 @@ contract ERC721MFactory is Ownable {
         _preconfigurations[msg.sender] = preconf;
     }
 
-    // Deploy MiyaMints flavored ERC721M collection
+    // Deploy ERC721M collection and fully initialize it
     function deploy(
         uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
         uint16 _royaltyFee, // Percentage in basis points (0 - 10000) for royalty fee
@@ -89,8 +93,11 @@ contract ERC721MFactory is Ownable {
         IInitialize(deployment).initialize(_allocation, _royaltyFee, _alignedNFT, _owner, _vaultId);
         IInitialize(deployment).initializeMetadata(preconf.name, preconf.symbol, preconf.baseURI, preconf.contractURI, preconf.maxSupply, preconf.price);
         IInitialize(deployment).disableInitializers();
+        // Clear preconfig data post-deployment
+        delete _preconfigurations[msg.sender];
     }
 
+    // Deploy ERC721M collection to deterministic address
     function deployDeterministic(
         uint16 _allocation, // Percentage in basis points (500 - 10000) of mint funds allocated to aligned collection
         uint16 _royaltyFee, // Percentage in basis points (0 - 10000) for royalty fee

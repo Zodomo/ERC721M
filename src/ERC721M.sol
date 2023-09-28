@@ -3,9 +3,10 @@ pragma solidity ^0.8.20;
 
 import "./AlignedNFT.sol";
 
-// This is a WIP contract
-// Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@proton.me
-// https://github.com/Zodomo/ERC721M
+/**
+ * @title ERC721M
+ * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
+ */
 contract ERC721M is AlignedNFT {
 
     using LibString for uint256;
@@ -134,13 +135,16 @@ contract ERC721M is AlignedNFT {
         return (bytes(__baseURI).length > 0 ? string(abi.encodePacked(__baseURI, _tokenId.toString())) : "");
     }
 
-    // Contract management
+    // Change recipient of mint funds
+    // NOTE: This is important if you are going to renounce!
     function changeFundsRecipient(address _to) external virtual payable onlyOwner { _changeFundsRecipient(_to); }
+    // Set standard mint price
     function setPrice(uint256 _price) external virtual payable onlyOwner {
         price = _price;
         emit PriceUpdated(_price);
     }
     function openMint() external virtual payable onlyOwner { mintOpen = true; }
+    // Update baseURI for entire collection
     function updateBaseURI(string memory __baseURI) external virtual payable onlyOwner {
         if (!uriLocked) {
             _baseURI = __baseURI;
@@ -148,6 +152,7 @@ contract ERC721M is AlignedNFT {
             emit BatchMetadataUpdate(0, maxSupply);
         } else { revert URILocked(); }
     }
+    // Permanently lock collection URI
     function lockURI() external virtual payable onlyOwner {
         uriLocked = true;
         emit URILock();
@@ -246,8 +251,11 @@ contract ERC721M is AlignedNFT {
             unchecked { ++i; }
         }
     }
+    // Iterate through unsafely sent NFTs to check for ownership and update vault inventory
     function checkInventory(uint256[] memory _tokenIds) external virtual payable { vault.checkInventory(_tokenIds); }
+    // Iterate through all vaulted NFTs (if any) and add what can be afforded to liq, sweep remaining funds to liq after
     function alignLiquidity() external virtual payable onlyHolderOwnerFundsRecipient { vault.alignLiquidity(); }
+    // Claim yield rewards from NFTX liquidity
     function claimYield(address _to) external virtual payable {
         // Cache owner address to save gas
         address owner = owner();
@@ -265,11 +273,13 @@ contract ERC721M is AlignedNFT {
         if (owner != msg.sender) { revert Unauthorized(); }
     }
     
+    // Rescue non-aligned tokens from contract, else send aligned tokens to vault
     function rescueERC20(address _asset, address _to) external virtual payable onlyOwner {
         uint256 balance = IERC20(_asset).balanceOf(address(this));
         if (balance > 0) { IERC20(_asset).transfer(_to, balance); }
         vault.rescueERC20(_asset, _to);
     }
+    // Rescue non-aligned NFTs from contract, else send aligned NFTs to vault
     function rescueERC721(
         address _asset,
         address _to,
@@ -285,6 +295,7 @@ contract ERC721M is AlignedNFT {
         }
         vault.rescueERC721(_asset, _to, _tokenId);
     }
+    // Claim funds accrued to deployer from mint funds
     function withdrawFunds(address _to, uint256 _amount) external virtual payable {
         // If renounced, send to fundsRecipient only
         if (owner() == address(0)) { _to = fundsRecipient; }

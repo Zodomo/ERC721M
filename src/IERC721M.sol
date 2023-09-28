@@ -5,6 +5,10 @@ import "openzeppelin/interfaces/IERC721.sol";
 import "./IERC721x.sol";
 import "./IERC2981.sol";
 
+/**
+ * @title IERC721M
+ * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
+ */
 interface IERC721M is IERC721, IERC721x, IERC2981 {
 
     error BadInput();

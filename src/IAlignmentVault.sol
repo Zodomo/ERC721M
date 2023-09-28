@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
+/**
+ * @title IAlignmentVault
+ * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
+ */
 interface IAlignmentVault {
     
     function vaultId() external view returns (uint256);

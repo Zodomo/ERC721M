@@ -5,7 +5,6 @@ import "solady/tokens/ERC721.sol";
 import "./LockRegistry.sol";
 
 // Sourced from / inspired by https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/erc721/ERC721x.sol
-
 abstract contract ERC721x is ERC721, LockRegistry {
 
 	error TokenLock();
@@ -41,16 +40,19 @@ abstract contract ERC721x is ERC721, LockRegistry {
 		super.safeTransferFrom(_from, _to, _tokenId, _data);
 	}
 
+	// Approved lockers can lock staked NFT to prevent transfers until released from their platform
 	function lockId(uint256 _id) external override virtual {
 		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_lockId(_id);
 	}
 
+	// Approved lockers must unlock token after unstake to release token hold
 	function unlockId(uint256 _id) external override virtual {
 		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_unlockId(_id);
 	}
 
+	// If a contract is no longer an approved locker, token holder can eliminate their lock
 	function freeId(uint256 _id, address _contract) external override virtual {
 		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_freeId(_id, _contract);

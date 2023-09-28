@@ -9,9 +9,10 @@ interface IInitialize {
     function disableInitializers() external;
 }
 
-// This is a WIP contract
-// Author: Zodomo // Zodomo.eth // X: @0xZodomo // T: @zodomo // zodomo@proton.me
-// https://github.com/Zodomo/ERC721M
+/**
+ * @title AlignmentVaultFactory
+ * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
+ */
 contract AlignmentVaultFactory is Ownable {
 
     event Deployed(address indexed deployer, address indexed collection);
@@ -25,12 +26,14 @@ contract AlignmentVaultFactory is Ownable {
         implementation = _implementation;
     }
 
+    // Update implementation address for new clones
+    // NOTE: Does not update implementation of prior clones
     function updateImplementation(address _implementation) external virtual onlyOwner {
         if (_implementation == implementation) { revert(); }
         implementation = _implementation;
     }
 
-    // Deploy MiyaMints flavored ERC721M collection
+    // Deploy AlignmentVault and fully initialize it
     function deploy(address _erc721, uint256 _vaultId) external virtual returns (address deployment) {
         deployment = LibClone.clone(implementation);
         vaultOwners[deployment] = msg.sender;
@@ -40,6 +43,7 @@ contract AlignmentVaultFactory is Ownable {
         IInitialize(deployment).disableInitializers();
     }
 
+    // Deploy AlignmentVault to deterministic address
     function deployDeterministic(
         address _erc721,
         uint256 _vaultId,
