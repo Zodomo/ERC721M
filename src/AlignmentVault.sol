@@ -20,28 +20,33 @@ interface INFTXLPStaking {
 }
 
 interface INFTXStakingZap {
-    function addLiquidity721(uint256 vaultId, uint256[] calldata ids, uint256 minWethIn, uint256 wethIn) external returns (uint256);
+    function addLiquidity721(uint256 vaultId, uint256[] calldata ids, uint256 minWethIn, uint256 wethIn)
+        external
+        returns (uint256);
 }
 
 /**
  * @title AlignmentVault
+ * @notice This allows anything to send ETH to a vault for the purpose of permanently deepening the floor liquidity of a target NFT collection.
+ * @dev You must initialize this contract once deployed! There is a factory for this, use it!
  * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
  */
 contract AlignmentVault is Ownable, Initializable {
-
     error InvalidVaultId();
     error AlignedAsset();
     error NoNFTXVault();
     error UnwantedNFT();
 
-    IWETH constant internal _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    address constant internal _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
-    IUniswapV2Router02 constant internal _SUSHI_V2_ROUTER = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+    IWETH internal constant _WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address internal constant _SUSHI_V2_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
+    IUniswapV2Router02 internal constant _SUSHI_V2_ROUTER =
+        IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
 
-    INFTXFactory constant internal _NFTX_VAULT_FACTORY = INFTXFactory(0xBE86f647b167567525cCAAfcd6f881F1Ee558216);
-    INFTXLPStaking constant internal _NFTX_LIQUIDITY_STAKING = INFTXLPStaking(0x688c3E4658B5367da06fd629E41879beaB538E37);
-    INFTXStakingZap constant internal _NFTX_STAKING_ZAP = INFTXStakingZap(0xdC774D5260ec66e5DD4627E1DD800Eff3911345C);
-    
+    INFTXFactory internal constant _NFTX_VAULT_FACTORY = INFTXFactory(0xBE86f647b167567525cCAAfcd6f881F1Ee558216);
+    INFTXLPStaking internal constant _NFTX_LIQUIDITY_STAKING =
+        INFTXLPStaking(0x688c3E4658B5367da06fd629E41879beaB538E37);
+    INFTXStakingZap internal constant _NFTX_STAKING_ZAP = INFTXStakingZap(0xdC774D5260ec66e5DD4627E1DD800Eff3911345C);
+
     UniswapV2LiquidityHelper internal _liqHelper; // Liquidity helper used to deepen NFTX SLP with any amount of tokens
     IERC721 public erc721; // ERC721 token
     IERC20 public nftxInventory; // NFTX NFT token
@@ -49,12 +54,9 @@ contract AlignmentVault is Ownable, Initializable {
     uint256 public vaultId; // NFTX vault Id
     uint256[] public nftsHeld; // Inventory of aligned erc721 NFTs stored in contract
 
-    constructor() payable { }
-    function initialize(
-        address _erc721,
-        address _owner,
-        uint256 _vaultId
-    ) external virtual payable initializer {
+    constructor() payable {}
+
+    function initialize(address _erc721, address _owner, uint256 _vaultId) external payable virtual initializer {
         // Initialize contract ownership
         _initializeOwner(_owner);
         // Set target NFT collection for alignment
@@ -67,31 +69,30 @@ contract AlignmentVault is Ownable, Initializable {
         // Loop index is set to max value in order to determine if a match was found
         uint256 index = type(uint256).max;
         // If no vaultId is specified, use default (initial) vault
-        if (_vaultId == 0) { index = 0; }
-        else {
+        if (_vaultId == 0) {
+            index = 0;
+        } else {
             // Retrieve all vaults
             address[] memory vaults = _NFTX_VAULT_FACTORY.vaultsForAsset(_erc721);
-            if (vaults.length == 0) { revert NoNFTXVault(); }
+            if (vaults.length == 0) revert NoNFTXVault();
             for (uint256 i; i < vaults.length;) {
                 if (INFTXVault(vaults[i]).vaultId() == _vaultId) {
                     index = i;
                     vaultId = _vaultId;
                     break;
                 }
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
             }
-            if (index == type(uint256).max) { revert InvalidVaultId(); }
+            if (index == type(uint256).max) revert InvalidVaultId();
         }
         // Derive nftxInventory token contract and vaultId if necessary
         address _nftxInventory = _NFTX_VAULT_FACTORY.vaultsForAsset(_erc721)[index];
-        if (_vaultId == 0) { vaultId = uint64(INFTXVault(_nftxInventory).vaultId()); }
+        if (_vaultId == 0) vaultId = uint64(INFTXVault(_nftxInventory).vaultId());
         nftxInventory = IERC20(_nftxInventory);
         // Derive nftxLiquidity LP contract
-        nftxLiquidity = IERC20(UniswapV2Library.pairFor(
-            _SUSHI_V2_FACTORY,
-            address(_WETH),
-            _nftxInventory
-        ));
+        nftxLiquidity = IERC20(UniswapV2Library.pairFor(_SUSHI_V2_FACTORY, address(_WETH), _nftxInventory));
         // Approve sending nftxLiquidity to NFTX LP Staking contract
         nftxLiquidity.approve(address(_NFTX_LIQUIDITY_STAKING), type(uint256).max);
         // Setup liquidity helper
@@ -100,29 +101,35 @@ contract AlignmentVault is Ownable, Initializable {
         IERC20(address(_WETH)).approve(address(_liqHelper), type(uint256).max);
         nftxInventory.approve(address(_liqHelper), type(uint256).max);
     }
-    function disableInitializers() external virtual payable { _disableInitializers(); }
-    function renounceOwnership() public virtual override payable { }
-    
+
+    function disableInitializers() external payable virtual {
+        _disableInitializers();
+    }
+
+    function renounceOwnership() public payable virtual override {}
+
     // Use NFTX SLP for aligned NFT as floor price oracle and for determining WETH required for adding liquidity
     // Using NFTX as a price oracle is intentional, as Chainlink/others weren't sufficient or too expensive
-    function _estimateFloor() internal virtual view returns (uint256) {
+    function _estimateFloor() internal view virtual returns (uint256) {
         // Retrieve SLP reserves to calculate price of NFT token in WETH
         (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(nftxLiquidity)).getReserves();
         // Calculate value of NFT spot in WETH using SLP reserves values
         uint256 spotPrice;
         // Reverse reserve values if token1 isn't WETH
         if (IUniswapV2Pair(address(nftxLiquidity)).token1() != address(_WETH)) {
-            spotPrice = ((10**18 * uint256(reserve0)) / uint256(reserve1));
-        } else { spotPrice = ((10**18 * uint256(reserve1)) / uint256(reserve0)); }
+            spotPrice = ((10 ** 18 * uint256(reserve0)) / uint256(reserve1));
+        } else {
+            spotPrice = ((10 ** 18 * uint256(reserve1)) / uint256(reserve0));
+        }
         return (spotPrice);
     }
 
-    function alignLiquidity() external virtual payable onlyOwner {
+    function alignLiquidity() external payable virtual onlyOwner {
         // Cache vaultId to save gas
         uint256 _vaultId = vaultId;
         // Wrap all ETH, if any
         uint256 balance = address(this).balance;
-        if (balance > 0) { _WETH.deposit{ value: balance }(); }
+        if (balance > 0) _WETH.deposit{value: balance}();
         // Update balance to total WETH
         balance = IERC20(address(_WETH)).balanceOf(address(this));
 
@@ -148,7 +155,9 @@ contract AlignmentVault is Ownable, Initializable {
                 for (uint256 i; i < addQty;) {
                     tokenIds[i] = inventory[length - addQty + i];
                     nftsHeld.pop();
-                    unchecked { ++i; }
+                    unchecked {
+                        ++i;
+                    }
                 }
                 // Stake NFTs and ETH, approvals were given in initializeVault()
                 _NFTX_STAKING_ZAP.addLiquidity721(_vaultId, tokenIds, 1, requiredEth);
@@ -162,22 +171,17 @@ contract AlignmentVault is Ownable, Initializable {
         // Process rebalancing remaining ETH and inventory tokens (if any) to add to LP
         if (balance > 0 || nftxInvBal > 0) {
             _liqHelper.swapAndAddLiquidityTokenAndToken(
-                address(_WETH),
-                address(nftxInventory),
-                uint112(balance),
-                uint112(nftxInvBal),
-                1,
-                address(this)
+                address(_WETH), address(nftxInventory), uint112(balance), uint112(nftxInvBal), 1, address(this)
             );
         }
 
         // Stake liquidity tokens, if any
         uint256 liquidity = nftxLiquidity.balanceOf(address(this));
-        if (liquidity > 0) { _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity); }
+        if (liquidity > 0) _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
     }
 
     // Claim NFTWETH SLP yield
-    function claimYield(address _recipient) external virtual payable onlyOwner {
+    function claimYield(address _recipient) external payable virtual onlyOwner {
         // Cache vaultId to save gas
         uint256 _vaultId = vaultId;
         // Claim SLP rewards
@@ -185,7 +189,7 @@ contract AlignmentVault is Ownable, Initializable {
         // Determine yield amount
         uint256 yield = nftxInventory.balanceOf(address(this));
         // If no yield, end execution to save gas
-        if (yield == 0) { return; }
+        if (yield == 0) return;
         // If recipient is provided, send them 50%
         if (_recipient != address(0)) {
             uint256 amount;
@@ -197,12 +201,7 @@ contract AlignmentVault is Ownable, Initializable {
         }
         // Send all remaining yield to LP
         _liqHelper.swapAndAddLiquidityTokenAndToken(
-            address(_WETH),
-            address(nftxInventory),
-            0,
-            uint112(yield),
-            1,
-            address(this)
+            address(_WETH), address(nftxInventory), 0, uint112(yield), 1, address(this)
         );
 
         // Stake that LP
@@ -211,7 +210,7 @@ contract AlignmentVault is Ownable, Initializable {
     }
 
     // Check contract inventory for unsafe transfers of aligned NFTs
-    function checkInventory(uint256[] memory _tokenIds) external virtual payable {
+    function checkInventory(uint256[] memory _tokenIds) external payable virtual {
         // Cache nftsHeld to reduce SLOADs
         uint256[] memory inventory = nftsHeld;
         // Iterate through passed array
@@ -227,31 +226,33 @@ contract AlignmentVault is Ownable, Initializable {
                             noticed = true;
                             break;
                         }
-                        unchecked { ++j; }
+                        unchecked {
+                            ++j;
+                        }
                     }
                     // If tokenId wasn't in stored array, add it
-                    if (!noticed) { nftsHeld.push(_tokenIds[i]); }
+                    if (!noticed) nftsHeld.push(_tokenIds[i]);
                 }
-            } catch { }
-            unchecked { ++i; }
+            } catch {}
+            unchecked {
+                ++i;
+            }
         }
     }
 
     // Rescue tokens from vault and/or liq helper (use address(0) for ETH), returns 0 for aligned assets
-    function rescueERC20(address _token, address _to) external virtual payable onlyOwner returns (uint256) {
+    function rescueERC20(address _token, address _to) external payable virtual onlyOwner returns (uint256) {
         // If address(0), rescue ETH from liq helper to vault
         if (_token == address(0)) {
             _liqHelper.emergencyWithdrawEther();
             uint256 balance = address(this).balance;
-            if (balance > 0) { _WETH.deposit{ value: balance }(); }
+            if (balance > 0) _WETH.deposit{value: balance}();
             return (0);
         }
         // If WETH, nftxInventory, or nftxLiquidity, rescue from liq helper to vault
-        else if (_token == address(_WETH) || 
-            _token == address(nftxInventory) ||
-            _token == address(nftxLiquidity)) {
-                _liqHelper.emergencyWithdrawErc20(_token);
-                return (0);
+        else if (_token == address(_WETH) || _token == address(nftxInventory) || _token == address(nftxLiquidity)) {
+            _liqHelper.emergencyWithdrawErc20(_token);
+            return (0);
         }
         // If any other token, rescue from liq helper and/or vault and send to recipient
         else {
@@ -267,28 +268,23 @@ contract AlignmentVault is Ownable, Initializable {
         }
     }
     // Retrieve non-aligned NFTs, but retain aligned NFTs
-    function rescueERC721(
-        address _token, 
-        address _to,
-        uint256 _tokenId
-    ) external virtual payable onlyOwner {
+
+    function rescueERC721(address _token, address _to, uint256 _tokenId) external payable virtual onlyOwner {
         // If _address is for the aligned collection, revert
-        if (address(erc721) == _token) { revert AlignedAsset(); }
+        if (address(erc721) == _token) revert AlignedAsset();
         // Otherwise, attempt to send to recipient
-        else { IERC721(_token).transferFrom(address(this), _to, _tokenId); }
+        else IERC721(_token).transferFrom(address(this), _to, _tokenId);
     }
 
     // Receive logic
-    receive() external virtual payable { _WETH.deposit{ value: msg.value }(); }
+    receive() external payable virtual {
+        _WETH.deposit{value: msg.value}();
+    }
     // Log only aligned NFTs stored in the contract, revert if sent other NFTs
-    function onERC721Received(
-        address,
-        address,
-        uint256 _tokenId,
-        bytes calldata
-    ) external virtual returns (bytes4) {
-        if (msg.sender == address(erc721)) { nftsHeld.push(_tokenId); }
-        else { revert UnwantedNFT(); }
+
+    function onERC721Received(address, address, uint256 _tokenId, bytes calldata) external virtual returns (bytes4) {
+        if (msg.sender == address(erc721)) nftsHeld.push(_tokenId);
+        else revert UnwantedNFT();
         return AlignmentVault.onERC721Received.selector;
     }
 }

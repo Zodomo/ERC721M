@@ -6,7 +6,6 @@ import "../src/AlignmentVault.sol";
 import "../src/AlignmentVaultFactory.sol";
 
 contract FactoryTest is DSTestPlus {
-
     AlignmentVault public implementation;
     AlignmentVault public implementation2;
     AlignmentVaultFactory public factory;
@@ -21,6 +20,7 @@ contract FactoryTest is DSTestPlus {
         factory.updateImplementation(address(implementation2));
         require(factory.implementation() == address(implementation2));
     }
+
     function testUpdateImplementationNoChange() public {
         hevm.expectRevert(bytes(""));
         factory.updateImplementation(address(implementation));
@@ -47,10 +47,12 @@ contract FactoryTest is DSTestPlus {
         address collection = deployContract();
         require(collection != address(0), "deployment failure");
     }
+
     function testDeployDeterministic() public {
         address collection = deployDeterministicContract();
         require(collection != address(0), "deployment failure");
     }
+
     function testMultipleDeployments() public {
         address deploy0 = deployContract();
         address deploy1 = deployContract();

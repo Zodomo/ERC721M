@@ -6,7 +6,6 @@ import "./IERC2981.sol";
 // Sourced from / inspired by https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/common/ERC2981.sol
 // Modified it to implement features and work with Solady and the ERC165 override scheme of this project
 abstract contract ERC2981 is IERC2981 {
-
     error ExceedsDenominator();
     error InvalidReceiver();
 
@@ -45,8 +44,8 @@ abstract contract ERC2981 is IERC2981 {
      * - `feeNumerator` cannot be greater than the fee denominator.
      */
     function _setDefaultRoyalty(address receiver, uint96 feeNumerator) internal virtual {
-        if (feeNumerator > 10000) { revert ExceedsDenominator(); }
-        if (receiver == address(0)) { revert InvalidReceiver(); }
+        if (feeNumerator > 10000) revert ExceedsDenominator();
+        if (receiver == address(0)) revert InvalidReceiver();
 
         _defaultRoyaltyInfo = RoyaltyInfo(receiver, feeNumerator);
 
@@ -56,7 +55,9 @@ abstract contract ERC2981 is IERC2981 {
     /**
      * @dev Removes default royalty information.
      */
-    function _deleteDefaultRoyalty() internal virtual { delete _defaultRoyaltyInfo; }
+    function _deleteDefaultRoyalty() internal virtual {
+        delete _defaultRoyaltyInfo;
+    }
 
     /**
      * @dev Sets the royalty information for a specific token id, overriding the global default.
@@ -66,13 +67,9 @@ abstract contract ERC2981 is IERC2981 {
      * - `receiver` cannot be the zero address.
      * - `feeNumerator` cannot be greater than the fee denominator.
      */
-    function _setTokenRoyalty(
-        uint256 tokenId,
-        address receiver,
-        uint96 feeNumerator
-    ) internal virtual {
-        if (feeNumerator > 10000) { revert ExceedsDenominator(); }
-        if (receiver == address(0)) { revert InvalidReceiver(); }
+    function _setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator) internal virtual {
+        if (feeNumerator > 10000) revert ExceedsDenominator();
+        if (receiver == address(0)) revert InvalidReceiver();
 
         _tokenRoyaltyInfo[tokenId] = RoyaltyInfo(receiver, feeNumerator);
         emit RoyaltyConfigured(tokenId, receiver, feeNumerator);

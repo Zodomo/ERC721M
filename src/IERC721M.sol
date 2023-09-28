@@ -10,7 +10,6 @@ import "./IERC2981.sol";
  * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
  */
 interface IERC721M is IERC721, IERC721x, IERC2981 {
-
     error BadInput();
     error NotActive();
     error NotMinted();
@@ -36,7 +35,7 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     event URIChanged(string indexed baseURI);
     event BlacklistConfigured(address[] indexed blacklist);
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
-    
+
     event NormalMint(address indexed to, uint64 indexed amount);
     event DiscountedMint(address indexed asset, address indexed to, uint64 indexed amount);
     event ConfigureMintDiscount(
@@ -89,7 +88,7 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     function configureRoyalties(address _recipient, uint96 _royaltyFee) external;
     function configureRoyaltiesForId(uint256 _tokenId, address _recipient, uint96 _feeNumerator) external;
     function disableRoyalties() external;
-    
+
     function mint(address _to, uint64 _amount) external payable;
     function mintDiscount(address _asset, address _to, uint64 _amount) external payable;
     function configureMintDiscount(

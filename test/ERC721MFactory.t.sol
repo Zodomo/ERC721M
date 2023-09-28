@@ -8,7 +8,6 @@ import "../src/ERC721MFactory.sol";
 import "../src/AlignmentVault.sol";
 
 contract FactoryTest is DSTestPlus {
-
     AlignmentVault public vaultImplementation = new AlignmentVault();
     ERC721M public implementation;
     ERC721M public implementation2;
@@ -16,7 +15,9 @@ contract FactoryTest is DSTestPlus {
 
     function setUp() public {
         bytes memory creationCode = hevm.getCode("AlignmentVaultFactory.sol");
-        hevm.etch(address(7777777), abi.encodePacked(creationCode, abi.encode(address(this), address(vaultImplementation))));
+        hevm.etch(
+            address(7777777), abi.encodePacked(creationCode, abi.encode(address(this), address(vaultImplementation)))
+        );
         (bool success, bytes memory runtimeBytecode) = address(7777777).call{value: 0}("");
         require(success, "StdCheats deployCodeTo(string,bytes,uint256,address): Failed to create runtime bytecode.");
         hevm.etch(address(7777777), runtimeBytecode);
@@ -30,6 +31,7 @@ contract FactoryTest is DSTestPlus {
         factory.updateImplementation(address(implementation2));
         require(factory.implementation() == address(implementation2));
     }
+
     function testUpdateImplementationNoChange() public {
         hevm.expectRevert(bytes(""));
         factory.updateImplementation(address(implementation));
@@ -49,13 +51,7 @@ contract FactoryTest is DSTestPlus {
         uint256 vaultId = 392;
 
         factory.preconfigure(name, symbol, baseURI, contractURI, maxSupply, price);
-        address deployment = factory.deploy(
-            allocation,
-            royaltyFee,
-            alignedNFT,
-            owner,
-            vaultId
-        );
+        address deployment = factory.deploy(allocation, royaltyFee, alignedNFT, owner, vaultId);
         require(factory.contractOwners(deployment) == address(this), "deployer mapping error");
         return deployment;
     }
@@ -75,14 +71,7 @@ contract FactoryTest is DSTestPlus {
         bytes32 salt = bytes32("42069");
 
         factory.preconfigure(name, symbol, baseURI, contractURI, maxSupply, price);
-        address deployment = factory.deployDeterministic(
-            allocation,
-            royaltyFee,
-            alignedNFT,
-            owner,
-            vaultId,
-            salt
-        );
+        address deployment = factory.deployDeterministic(allocation, royaltyFee, alignedNFT, owner, vaultId, salt);
         require(factory.contractOwners(deployment) == address(this), "deployer mapping error");
         return deployment;
     }
@@ -91,10 +80,12 @@ contract FactoryTest is DSTestPlus {
         address collection = deployContract();
         require(collection != address(0), "deployment failure");
     }
+
     function testDeployDeterministic() public {
         address collection = deployDeterministicContract();
         require(collection != address(0), "deployment failure");
     }
+
     function testMultipleDeployments() public {
         address deploy0 = deployContract();
         address deploy1 = deployContract();

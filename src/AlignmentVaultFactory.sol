@@ -11,10 +11,11 @@ interface IInitialize {
 
 /**
  * @title AlignmentVaultFactory
+ * @notice This can be used by any EOA or contract to deploy an AlignmentVault owned by the deployer.
+ * @dev deploy() will perform a normal deployment. deployDeterministic() allows you to mine a deployment address.
  * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
  */
 contract AlignmentVaultFactory is Ownable {
-
     event Deployed(address indexed deployer, address indexed collection);
 
     address public implementation;
@@ -29,7 +30,7 @@ contract AlignmentVaultFactory is Ownable {
     // Update implementation address for new clones
     // NOTE: Does not update implementation of prior clones
     function updateImplementation(address _implementation) external virtual onlyOwner {
-        if (_implementation == implementation) { revert(); }
+        if (_implementation == implementation) revert();
         implementation = _implementation;
     }
 
@@ -44,11 +45,11 @@ contract AlignmentVaultFactory is Ownable {
     }
 
     // Deploy AlignmentVault to deterministic address
-    function deployDeterministic(
-        address _erc721,
-        uint256 _vaultId,
-        bytes32 _salt
-    ) external virtual returns (address deployment) {
+    function deployDeterministic(address _erc721, uint256 _vaultId, bytes32 _salt)
+        external
+        virtual
+        returns (address deployment)
+    {
         deployment = LibClone.cloneDeterministic(implementation, _salt);
         vaultOwners[deployment] = msg.sender;
         emit Deployed(msg.sender, deployment);

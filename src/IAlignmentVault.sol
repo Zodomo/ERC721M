@@ -6,7 +6,6 @@ pragma solidity ^0.8.20;
  * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
  */
 interface IAlignmentVault {
-    
     function vaultId() external view returns (uint256);
     function nftsHeld(uint256 _index) external view returns (uint256);
 

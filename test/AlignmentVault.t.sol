@@ -13,10 +13,9 @@ interface IFallback {
     function doesntExist(uint256 _unusedVar) external payable;
 }
 
-contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
-
+contract AlignmentVaultTest is DSTestPlus, ERC721Holder {
     error Unauthorized();
-    
+
     TestingAlignmentVault alignmentVault;
     TestingAlignmentVault alignmentVaultManual;
     TestingAlignmentVault alignmentVaultInvalid;
@@ -33,7 +32,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
 
     function setUp() public {
         hevm.deal(address(this), 200 ether);
-        weth.deposit{ value: 100 ether }();
+        weth.deposit{value: 100 ether}();
         alignmentVault = new TestingAlignmentVault();
         alignmentVault.initialize(address(nft), address(this), 0);
         testToken = new MockERC20("Test Token", "TEST", 18);
@@ -46,6 +45,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     function testDisableInitializers() public {
         alignmentVault.disableInitializers();
     }
+
     function testRenounceOwnership() public {
         alignmentVault.renounceOwnership();
         require(alignmentVault.owner() != address(0));
@@ -56,11 +56,13 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         alignmentVaultManual.initialize(address(nft), address(this), 392);
         require(alignmentVaultManual.vaultId() == 392, "vaultId error");
     }
+
     function testInvalidVaultId() public {
         alignmentVaultInvalid = new TestingAlignmentVault();
         hevm.expectRevert(AlignmentVault.InvalidVaultId.selector);
         alignmentVaultInvalid.initialize(address(nft), address(this), 420);
     }
+
     function testMissingNFTXVault() public {
         alignmentVaultInvalid = new TestingAlignmentVault();
         hevm.expectRevert(AlignmentVault.NoNFTXVault.selector);
@@ -70,9 +72,11 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     function test_nftxInventory() public view {
         require(address(alignmentVault.nftxInventory()) == 0x227c7DF69D3ed1ae7574A1a7685fDEd90292EB48); // NFTX MILADY
     }
+
     function test_nftxLiquidity() public view {
         require(address(alignmentVault.nftxLiquidity()) == 0x15A8E38942F9e353BEc8812763fb3C104c89eCf4); // NFTX MILADYWETH SLP
     }
+
     function test_vaultId() public view {
         require(alignmentVault.vaultId() == 392); // NFTX Milady Vault ID
     }
@@ -80,6 +84,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     function test_estimateFloor() public view {
         require(alignmentVault.call_estimateFloor() > 0);
     }
+
     function test_estimateFloorReversedValues() public {
         address sproto = 0xEeca64ea9fCf99A22806Cd99b3d29cf6e8D54925;
         TestingAlignmentVault vaultBelowWeth = new TestingAlignmentVault();
@@ -90,6 +95,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     function testAlignLiquidityNoLiquidity() public {
         alignmentVault.alignLiquidity();
     }
+
     function testAlignLiquidityETH() public {
         hevm.deal(address(alignmentVault), 1 ether);
         require(address(alignmentVault).balance == 1 ether);
@@ -99,6 +105,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(nftxInv.balanceOf(address(alignmentVault)) == 0, "nftxInv balance error");
         require(nftWeth.balanceOf(address(alignmentVault)) == 0, "nftWeth balance error");
     }
+
     function testAlignLiquidityWETH() public {
         wethToken.transfer(address(alignmentVault), 1 ether);
         require(wethToken.balanceOf(address(alignmentVault)) == 1 ether);
@@ -108,6 +115,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(nftxInv.balanceOf(address(alignmentVault)) == 0, "nftxInv balance error");
         require(nftWeth.balanceOf(address(alignmentVault)) == 0, "nftWeth balance error");
     }
+
     function testAlignLiquidityNftxInventory() public {
         wethToken.approve(address(sushiRouter), 10 ether);
         address[] memory path = new address[](2);
@@ -122,10 +130,13 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(nftxInv.balanceOf(address(alignmentVault)) == 0, "nftxInv balance error");
         require(nftWeth.balanceOf(address(alignmentVault)) == 0, "nftWeth balance error");
     }
+
     function testAlignLiquidityNftxLiquidity() public {
         wethToken.approve(address(liquidityHelper), type(uint256).max);
         nftxInv.approve(address(liquidityHelper), type(uint256).max);
-        uint256 liquidity = liquidityHelper.swapAndAddLiquidityTokenAndToken(address(weth), address(nftxInv), 10 ether, 0, 1, address(alignmentVault));
+        uint256 liquidity = liquidityHelper.swapAndAddLiquidityTokenAndToken(
+            address(weth), address(nftxInv), 10 ether, 0, 1, address(alignmentVault)
+        );
         uint256 nftxBal = nftWeth.balanceOf(address(alignmentVault));
         require(liquidity == nftxBal, "liqHelper return error");
         require(nftxBal > 0, "swap and add error");
@@ -135,6 +146,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(nftxInv.balanceOf(address(alignmentVault)) == 0, "nftxInv balance error");
         require(nftWeth.balanceOf(address(alignmentVault)) == 0, "nftWeth balance error");
     }
+
     function testAlignLiquidityNftNoETH() public {
         hevm.deal(nft.ownerOf(42), 1 ether);
         hevm.startPrank(nft.ownerOf(42));
@@ -151,6 +163,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         hevm.expectRevert(bytes(""));
         alignmentVault.nftsHeld(1);
     }
+
     function testAlignLiquidityNftWithETH() public {
         hevm.deal(address(alignmentVault), 10 ether);
         hevm.startPrank(nft.ownerOf(42));
@@ -168,6 +181,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         hevm.expectRevert(bytes(""));
         alignmentVault.nftsHeld(0);
     }
+
     function testAlignLiquidityMultipleNftsWithETH() public {
         hevm.deal(address(alignmentVault), 42 ether);
         hevm.startPrank(nft.ownerOf(42));
@@ -199,10 +213,11 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     function testClaimYieldNone() public {
         alignmentVault.claimYield(address(this));
     }
+
     function testCompoundYieldNone() public {
         alignmentVault.claimYield(address(0));
     }
-    // TODO: GENERATE YIELD PROPERLY
+
     function testClaimYieldGenerated() public {
         hevm.deal(address(alignmentVault), 100 ether);
         alignmentVault.alignLiquidity();
@@ -238,6 +253,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         require(nftxInv.balanceOf(address(alignmentVault)) == 0, "nftxInv balance error");
         require(nftWeth.balanceOf(address(alignmentVault)) == 0, "nftWeth balance error");
     }
+
     function testCompoundYieldGenerated() public {
         hevm.deal(address(alignmentVault), 100 ether);
         alignmentVault.alignLiquidity();
@@ -282,6 +298,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         hevm.expectRevert(bytes(""));
         alignmentVault.nftsHeld(0);
     }
+
     function testCheckInventory() public {
         hevm.startPrank(nft.ownerOf(69));
         nft.approve(address(this), 69);
@@ -308,15 +325,16 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         hevm.expectRevert(bytes(""));
         alignmentVault.nftsHeld(3);
     }
-    
+
     function test_rescueERC20_ETH() public {
         address liqHelper = alignmentVault.view_liqHelper();
-        (bool success, ) = payable(liqHelper).call{ value: 1 ether }("");
+        (bool success,) = payable(liqHelper).call{value: 1 ether}("");
         require(success);
         uint256 recoveredETH = alignmentVault.rescueERC20(address(0), address(this));
         require(recoveredETH == 0);
         require(wethToken.balanceOf(address(alignmentVault)) == 1 ether);
     }
+
     function test_rescueERC20_WETH() public {
         address liqHelper = alignmentVault.view_liqHelper();
         wethToken.transfer(liqHelper, 1 ether);
@@ -326,6 +344,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         uint256 wethBalDiff = wethToken.balanceOf(address(alignmentVault)) - wethBal;
         require(wethBalDiff > 0);
     }
+
     function test_rescueERC20_NFTX() public {
         address liqHelper = alignmentVault.view_liqHelper();
         wethToken.approve(address(sushiRouter), 100 ether);
@@ -339,18 +358,21 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         uint256 nftxBalDiff = nftxInv.balanceOf(address(alignmentVault)) - nftxBal;
         require(nftxBalDiff > 0);
     }
+
     function test_rescueERC20_NFTWETH() public {
         address liqHelper = alignmentVault.view_liqHelper();
         wethToken.approve(address(liquidityHelper), type(uint256).max);
         nftxInv.approve(address(liquidityHelper), type(uint256).max);
         uint256 liqBal = nftWeth.balanceOf(address(alignmentVault));
-        uint256 liquidity = liquidityHelper.swapAndAddLiquidityTokenAndToken(address(weth), address(nftxInv), 1 ether, 0, 1, liqHelper);
+        uint256 liquidity =
+            liquidityHelper.swapAndAddLiquidityTokenAndToken(address(weth), address(nftxInv), 1 ether, 0, 1, liqHelper);
         require(liquidity > 0);
         uint256 recoveredNFTXLiq = alignmentVault.rescueERC20(address(nftWeth), address(this));
         require(recoveredNFTXLiq == 0);
         uint256 liqBalDiff = nftWeth.balanceOf(address(alignmentVault)) - liqBal;
         require(liqBalDiff > 0);
     }
+
     function test_rescueERC20_ETC() public {
         address liqHelper = alignmentVault.view_liqHelper();
         testToken.transfer(address(alignmentVault), 1 ether);
@@ -366,6 +388,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         alignmentVault.rescueERC721(address(testNFT), address(42), 1);
         require(testNFT.ownerOf(1) == address(42));
     }
+
     function test_rescueERC721_AlignedAsset() public {
         hevm.assume(nft.ownerOf(42) > address(0));
         hevm.startPrank(nft.ownerOf(42));
@@ -378,14 +401,15 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
 
     function testReceive() public {
         address liqHelper = alignmentVault.view_liqHelper();
-        (bool success, ) = payable(liqHelper).call{ value: 1 ether }("");
+        (bool success,) = payable(liqHelper).call{value: 1 ether}("");
         require(success);
         require(address(liqHelper).balance == 1 ether);
         success = false;
-        (success, ) = payable(address(alignmentVault)).call{ value: 1 ether }("");
+        (success,) = payable(address(alignmentVault)).call{value: 1 ether}("");
         require(success);
         require(wethToken.balanceOf(address(alignmentVault)) == 1 ether);
     }
+
     function testOnERC721Received() public {
         hevm.startPrank(nft.ownerOf(42));
         nft.approve(address(this), 42);
@@ -393,6 +417,7 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
         hevm.stopPrank();
         require(nft.ownerOf(42) == address(alignmentVault), "NFT redirection failed");
     }
+
     function testOnERC721Received_UnwantedNFT() public {
         hevm.expectRevert(AlignmentVault.UnwantedNFT.selector);
         testNFT.safeTransferFrom(address(this), address(alignmentVault), 1);

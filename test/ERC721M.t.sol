@@ -16,36 +16,21 @@ interface IFallback {
 }
 
 contract ERC721MTest is DSTestPlus, ERC721Holder {
-
     using LibString for uint256;
 
     event CollectionDiscount(
-        address indexed asset,
-        uint256 indexed discount,
-        uint256 indexed requiredBal,
-        uint256 quantity
+        address indexed asset, uint256 indexed discount, uint256 indexed requiredBal, uint256 quantity
     );
     event DiscountDeleted(address indexed asset);
     event DiscountOverwritten(
-        address indexed asset,
-        uint256 indexed discount,
-        uint256 indexed requiredBal,
-        uint256 remainingQty
+        address indexed asset, uint256 indexed discount, uint256 indexed requiredBal, uint256 remainingQty
     );
     event MintLockDiscount(
-        address indexed token,
-        uint256 indexed discount,
-        uint256 indexed amount,
-        uint256 timestamp,
-        uint256 quantity
+        address indexed token, uint256 indexed discount, uint256 indexed amount, uint256 timestamp, uint256 quantity
     );
     event MintLockDiscountDeleted(address indexed token);
     event MintLockDiscountOverwritten(
-        address indexed token,
-        uint256 indexed discount,
-        uint256 indexed amount,
-        uint256 timestamp,
-        uint256 remainingQty
+        address indexed token, uint256 indexed discount, uint256 indexed amount, uint256 timestamp, uint256 remainingQty
     );
 
     struct MintInfo {
@@ -55,6 +40,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         uint256 tokenBalance;
         uint256 mintPrice;
     }
+
     struct MinterInfo {
         uint256 amount;
         uint256[] amounts;
@@ -77,26 +63,17 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
 
     function setUp() public {
         bytes memory creationCode = hevm.getCode("AlignmentVaultFactory.sol");
-        hevm.etch(address(7777777), abi.encodePacked(creationCode, abi.encode(address(this), address(vaultImplementation))));
+        hevm.etch(
+            address(7777777), abi.encodePacked(creationCode, abi.encode(address(this), address(vaultImplementation)))
+        );
         (bool success, bytes memory runtimeBytecode) = address(7777777).call{value: 0}("");
         require(success, "StdCheats deployCodeTo(string,bytes,uint256,address): Failed to create runtime bytecode.");
         hevm.etch(address(7777777), runtimeBytecode);
 
         template = new ERC721M();
-        template.initialize(
-            2000,
-            500,
-            address(nft),
-            address(this),
-            0
-        );
+        template.initialize(2000, 500, address(nft), address(this), 0);
         template.initializeMetadata(
-            "ERC721M Test",
-            "ERC721M",
-            "https://miya.wtf/api/",
-            "https://miya.wtf/contract.json",
-            100,
-            0.01 ether
+            "ERC721M Test", "ERC721M", "https://miya.wtf/api/", "https://miya.wtf/contract.json", 100, 0.01 ether
         );
         template.changeFundsRecipient(address(42));
         hevm.deal(address(this), 1000 ether);
@@ -114,20 +91,9 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
 
     function testInitialize() public {
         manualInit = new ERC721M();
-        manualInit.initialize(
-            2000,
-            500,
-            address(nft),
-            address(this),
-            0
-        );
+        manualInit.initialize(2000, 500, address(nft), address(this), 0);
         manualInit.initializeMetadata(
-            "ERC721M Test",
-            "ERC721M",
-            "https://miya.wtf/api/",
-            "https://miya.wtf/contract.json",
-            100,
-            0.01 ether
+            "ERC721M Test", "ERC721M", "https://miya.wtf/api/", "https://miya.wtf/contract.json", 100, 0.01 ether
         );
         manualInit.disableInitializers();
         require(manualInit.allocation() == 2000);
@@ -138,60 +104,61 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(manualInit.owner() == address(this));
         require(keccak256(abi.encodePacked(manualInit.name())) == keccak256(abi.encodePacked("ERC721M Test")));
         require(keccak256(abi.encodePacked(manualInit.symbol())) == keccak256(abi.encodePacked("ERC721M")));
-        require(keccak256(abi.encodePacked(manualInit.baseURI())) == keccak256(abi.encodePacked("https://miya.wtf/api/")));
-        require(keccak256(abi.encodePacked(manualInit.contractURI())) == keccak256(abi.encodePacked("https://miya.wtf/contract.json")));
+        require(
+            keccak256(abi.encodePacked(manualInit.baseURI())) == keccak256(abi.encodePacked("https://miya.wtf/api/"))
+        );
+        require(
+            keccak256(abi.encodePacked(manualInit.contractURI()))
+                == keccak256(abi.encodePacked("https://miya.wtf/contract.json"))
+        );
         require(manualInit.maxSupply() == 100);
         require(manualInit.price() == 0.01 ether);
     }
+
     function testInitialize_NotAligned() public {
         manualInit = new ERC721M();
         hevm.expectRevert(ERC721M.NotAligned.selector);
-        manualInit.initialize(
-            250,
-            500,
-            address(nft),
-            address(this),
-            0
-        );
+        manualInit.initialize(250, 500, address(nft), address(this), 0);
     }
+
     function testInitialize_BadInput() public {
         manualInit = new ERC721M();
         hevm.expectRevert(AlignedNFT.BadInput.selector);
-        manualInit.initialize(
-            12345,
-            500,
-            address(nft),
-            address(this),
-            0
-        );
+        manualInit.initialize(12345, 500, address(nft), address(this), 0);
         hevm.expectRevert(AlignedNFT.BadInput.selector);
-        manualInit.initialize(
-            2000,
-            42069,
-            address(nft),
-            address(this),
-            0
-        );
+        manualInit.initialize(2000, 42069, address(nft), address(this), 0);
     }
 
     function testName() public view {
         require(keccak256(abi.encodePacked(template.name())) == keccak256(abi.encodePacked("ERC721M Test")));
     }
+
     function testSymbol() public view {
         require(keccak256(abi.encodePacked(template.symbol())) == keccak256(abi.encodePacked("ERC721M")));
     }
+
     function testBaseUri() public view {
         require(keccak256(abi.encodePacked(template.baseURI())) == keccak256(abi.encodePacked("https://miya.wtf/api/")));
     }
+
     function testContractURI() public view {
-        require(keccak256(abi.encodePacked(template.contractURI())) == keccak256(abi.encodePacked("https://miya.wtf/contract.json")));
+        require(
+            keccak256(abi.encodePacked(template.contractURI()))
+                == keccak256(abi.encodePacked("https://miya.wtf/contract.json"))
+        );
     }
 
     function testTokenURI() public {
         template.openMint();
-        template.mint{ value: 0.01 ether }(address(this), 1);
-        require(keccak256(abi.encodePacked(template.tokenURI(1))) == keccak256(abi.encodePacked(string.concat("https://miya.wtf/api/", uint256(template.totalSupply()).toString()))));
+        template.mint{value: 0.01 ether}(address(this), 1);
+        require(
+            keccak256(abi.encodePacked(template.tokenURI(1)))
+                == keccak256(
+                    abi.encodePacked(string.concat("https://miya.wtf/api/", uint256(template.totalSupply()).toString()))
+                )
+        );
     }
+
     function testTokenURI_NotMinted() public {
         hevm.expectRevert(ERC721M.NotMinted.selector);
         template.tokenURI(1);
@@ -202,12 +169,14 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.changeFundsRecipient(_to);
         require(template.fundsRecipient() == _to);
     }
+
     function testSetPrice(uint256 _price) public {
         hevm.assume(_price >= 10 gwei);
         hevm.assume(_price <= 1 ether);
         template.setPrice(_price);
         require(template.price() == _price);
     }
+
     function testOpenMint() public {
         require(template.mintOpen() == false);
         template.openMint();
@@ -218,11 +187,13 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.updateBaseURI("ipfs://miyahash/");
         require(keccak256(abi.encodePacked(template.baseURI())) == keccak256(abi.encodePacked("ipfs://miyahash/")));
     }
+
     function testUpdateBaseURI_URILocked() public {
         template.lockURI();
         hevm.expectRevert(ERC721M.URILocked.selector);
         template.updateBaseURI("ipfs://miyahash/");
     }
+
     function testLockURI() public {
         template.lockURI();
         require(template.uriLocked() == true);
@@ -239,27 +210,31 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         hevm.assume(_amount <= 100);
         hevm.assume(_to != address(0));
         template.openMint();
-        template.mint{ value: 0.01 ether * _amount }(_to, _amount);
+        template.mint{value: 0.01 ether * _amount}(_to, _amount);
     }
+
     function testMint_InsufficientPayment() public {
         template.openMint();
         hevm.expectRevert(ERC721M.InsufficientPayment.selector);
-        template.mint{ value: 0.001 ether }(address(this), 1);
+        template.mint{value: 0.001 ether}(address(this), 1);
     }
+
     function testMint_MintClosed() public {
         hevm.expectRevert(ERC721M.MintClosed.selector);
-        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1);
     }
+
     function testMint_CapReached() public {
         template.openMint();
-        template.mint{ value: 0.01 ether * 100 }(address(this), 100);
+        template.mint{value: 0.01 ether * 100}(address(this), 100);
         hevm.expectRevert(ERC721M.CapReached.selector);
-        template.mint{ value: 0.01 ether }(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1);
     }
+
     function testMint_CapExceeded() public {
         template.openMint();
         hevm.expectRevert(ERC721M.CapExceeded.selector);
-        template.mint{ value: 0.01 ether * 101 }(address(this), 101);
+        template.mint{value: 0.01 ether * 101}(address(this), 101);
     }
 
     function configureMintDiscountERC20() public {
@@ -277,6 +252,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         prices[0] = 0.025 ether;
         template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
     }
+
     function configureMintDiscountERC721() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
@@ -292,16 +268,11 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         prices[0] = 0.025 ether;
         template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
     }
+
     function testConfigureMintDiscountERC20() public {
         configureMintDiscountERC20();
-        (
-            bool active,
-            int64 supply,
-            int64 allocated,
-            uint64 userMax,
-            uint256 mintPrice,
-            uint256 tokenBalance
-        ) = template.mintDiscountInfo(address(testToken));
+        (bool active, int64 supply, int64 allocated, uint64 userMax, uint256 mintPrice, uint256 tokenBalance) =
+            template.mintDiscountInfo(address(testToken));
         require(supply == 10, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
@@ -309,16 +280,11 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
+
     function testConfigureMintDiscountERC721() public {
         configureMintDiscountERC721();
-        (
-            bool active,
-            int64 supply,
-            int64 allocated,
-            uint64 userMax,
-            uint256 mintPrice,
-            uint256 tokenBalance
-        ) = template.mintDiscountInfo(address(testNFT));
+        (bool active, int64 supply, int64 allocated, uint64 userMax, uint256 mintPrice, uint256 tokenBalance) =
+            template.mintDiscountInfo(address(testNFT));
         require(supply == 10, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
@@ -326,6 +292,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 2, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
+
     function testConfigureMintDiscount_ArrayLengthMismatch() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](2);
@@ -343,6 +310,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
         template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
     }
+
     function testConfigureMintDiscount_Underflow() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
@@ -361,6 +329,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         hevm.expectRevert(ERC721M.Underflow.selector);
         template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
     }
+
     function testConfigureMintDiscountReduceToZero() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
@@ -377,14 +346,8 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
         allocations[0] = -10;
         template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
-        (
-            bool active,
-            int64 supply,
-            int64 allocated,
-            uint64 _userMax,
-            uint256 mintPrice,
-            uint256 tokenBalance
-        ) = template.mintDiscountInfo(address(testToken));
+        (bool active, int64 supply, int64 allocated, uint64 _userMax, uint256 mintPrice, uint256 tokenBalance) =
+            template.mintDiscountInfo(address(testToken));
         require(supply == 0, "supply error");
         require(allocated == 0, "allocated error");
         require(active == false, "active error");
@@ -392,6 +355,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
+
     function testMintDiscountERC20() public {
         configureMintDiscountERC20();
         template.openMint();
@@ -399,20 +363,14 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         address to = address(this);
         uint64 amount = 2;
         uint256 payment = 0.05 ether;
-        template.mintDiscount{ value: payment }(asset, to, amount);
+        template.mintDiscount{value: payment}(asset, to, amount);
         require(template.balanceOf(address(this)) == 2, "balance error");
         require(template.ownerOf(1) == address(this), "owner/tokenId error");
         require(template.ownerOf(2) == address(this), "owner/tokenId error");
         require(wethToken.balanceOf(address(template.vault())) == 0.01 ether, "vault balance error");
         require(address(template).balance == 0.04 ether, "contract balance error");
-        (
-            bool active,
-            int64 supply,
-            int64 allocated,
-            uint64 userMax,
-            uint256 mintPrice,
-            uint256 tokenBalance
-        ) = template.mintDiscountInfo(address(testToken));
+        (bool active, int64 supply, int64 allocated, uint64 userMax, uint256 mintPrice, uint256 tokenBalance) =
+            template.mintDiscountInfo(address(testToken));
         require(supply == 8, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
@@ -420,6 +378,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
+
     function testMintDiscountERC721() public {
         configureMintDiscountERC721();
         template.openMint();
@@ -427,20 +386,14 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         address to = address(this);
         uint64 amount = 2;
         uint256 payment = 0.05 ether;
-        template.mintDiscount{ value: payment }(asset, to, amount);
+        template.mintDiscount{value: payment}(asset, to, amount);
         require(template.balanceOf(address(this)) == 2, "balance error");
         require(template.ownerOf(1) == address(this), "owner/tokenId error");
         require(template.ownerOf(2) == address(this), "owner/tokenId error");
         require(wethToken.balanceOf(address(template.vault())) == 0.01 ether, "vault balance error");
         require(address(template).balance == 0.04 ether, "contract balance error");
-        (
-            bool active,
-            int64 supply,
-            int64 allocated,
-            uint64 userMax,
-            uint256 mintPrice,
-            uint256 tokenBalance
-        ) = template.mintDiscountInfo(address(testNFT));
+        (bool active, int64 supply, int64 allocated, uint64 userMax, uint256 mintPrice, uint256 tokenBalance) =
+            template.mintDiscountInfo(address(testNFT));
         require(supply == 8, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
@@ -448,6 +401,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(tokenBalance == 2, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
+
     function testMintDiscount_NotActive() public {
         template.openMint();
         address asset = address(testNFT);
@@ -455,8 +409,9 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         uint64 amount = 2;
         uint256 payment = 0.05 ether;
         hevm.expectRevert(ERC721M.NotActive.selector);
-        template.mintDiscount{ value: payment }(asset, to, amount);
+        template.mintDiscount{value: payment}(asset, to, amount);
     }
+
     function testMintDiscount_SpecialExceeded() public {
         configureMintDiscountERC721();
         template.openMint();
@@ -465,8 +420,9 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         uint64 amount = 11;
         uint256 payment = 0.275 ether;
         hevm.expectRevert(ERC721M.SpecialExceeded.selector);
-        template.mintDiscount{ value: payment }(asset, to, amount);
+        template.mintDiscount{value: payment}(asset, to, amount);
     }
+
     function testMintDiscount_SpecialExceeded2() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
@@ -488,8 +444,9 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         uint64 amount = 6;
         uint256 payment = 0.15 ether;
         hevm.expectRevert(ERC721M.SpecialExceeded.selector);
-        template.mintDiscount{ value: payment }(asset, to, amount);
+        template.mintDiscount{value: payment}(asset, to, amount);
     }
+
     function testMintDiscount_InsufficientBalance() public {
         configureMintDiscountERC721();
         template.openMint();
@@ -500,8 +457,9 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         hevm.deal(address(420), 10 ether);
         hevm.expectRevert(ERC721M.InsufficientBalance.selector);
         hevm.prank(address(420));
-        template.mintDiscount{ value: payment }(asset, to, amount);
+        template.mintDiscount{value: payment}(asset, to, amount);
     }
+
     function testMintDiscount_InsufficientPayment() public {
         configureMintDiscountERC721();
         template.openMint();
@@ -510,8 +468,9 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         uint64 amount = 2;
         uint256 payment = 0.04 ether;
         hevm.expectRevert(ERC721M.InsufficientPayment.selector);
-        template.mintDiscount{ value: payment }(asset, to, amount);
+        template.mintDiscount{value: payment}(asset, to, amount);
     }
+
     function testMintDiscountAll() public {
         configureMintDiscountERC20();
         template.openMint();
@@ -519,7 +478,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         address to = address(this);
         uint64 amount = 10;
         uint256 payment = 0.25 ether;
-        template.mintDiscount{ value: payment }(asset, to, amount);
+        template.mintDiscount{value: payment}(asset, to, amount);
     }
 
     function testFixInventory() public {
@@ -553,6 +512,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     function testAlignLiquidityNoLiquidity() public {
         template.alignLiquidity();
     }
+
     function testAlignLiquidityETH() public {
         address vault = address(template.vault());
         hevm.deal(vault, 1 ether);
@@ -564,27 +524,31 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     function testClaimYieldNone() public {
         template.claimYield(address(this));
     }
+
     function testCompoundYieldNone() public {
         template.claimYield(address(0));
     }
+
     function testClaimYieldNoneRenounced() public {
         template.renounceOwnership();
         template.claimYield(address(this));
     }
+
     function testCompoundYieldNoneRenounced() public {
         template.renounceOwnership();
         template.claimYield(address(0));
     }
+
     function testClaimYield_Unauthorized() public {
         hevm.prank(address(1));
         hevm.expectRevert(Ownable.Unauthorized.selector);
         template.claimYield(address(1));
     }
-    // TODO: GENERATE YIELD PROPERLY
+
     function testClaimYieldGenerated() public {
         hevm.deal(address(template.vault()), 100 ether);
         template.alignLiquidity();
-        weth.deposit{ value: 100 ether }();
+        weth.deposit{value: 100 ether}();
         wethToken.approve(address(sushiRouter), type(uint256).max);
         nftxInv.approve(address(sushiRouter), type(uint256).max);
         address[] memory path = new address[](2);
@@ -599,26 +563,32 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
             path[1] = address(weth);
             sushiRouter.swapExactTokensForTokens(nftxBal, 1, path, address(this), block.timestamp);
         }
+        balance = wethToken.balanceOf(address(this));
+        path[0] = address(weth);
+        path[1] = address(nftxInv);
+        sushiRouter.swapExactTokensForTokens(balance, 1, path, address(template.vault()), block.timestamp);
         template.claimYield(address(this));
-        //require(nftxInv.balanceOf(address(this)) > 0, "nftxInv claim balance error");
+        require(nftxInv.balanceOf(address(this)) > 0, "nftxInv claim balance error");
     }
-    // TODO: Test claiming generated yield after renounce
 
     function testRescueERC20() public {
         testToken.transfer(address(template), 1 ether);
         template.rescueERC20(address(testToken), address(42));
         require(testToken.balanceOf(address(42)) >= 1 ether);
     }
+
     function testRescueERC721() public {
         testNFT.transferFrom(address(this), address(template), 1);
         template.rescueERC721(address(testNFT), address(42), 1);
         require(testNFT.ownerOf(1) == address(42));
     }
+
     function testRescueERC721Vault() public {
         testNFT.transferFrom(address(this), address(template.vault()), 1);
         template.rescueERC721(address(testNFT), address(42), 1);
         require(testNFT.ownerOf(1) == address(42));
     }
+
     function testRescueERC721AlignedAsset() public {
         hevm.startPrank(nft.ownerOf(42));
         nft.approve(address(this), 42);
@@ -630,36 +600,40 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
 
     function testWithdrawFunds() public {
         template.openMint();
-        template.mint{ value: 0.01 ether }(address(42), 1);
+        template.mint{value: 0.01 ether}(address(42), 1);
         uint256 dust = address(42).balance;
         template.withdrawFunds(address(42), 0.002 ether);
         require((address(42).balance - dust) == 0.002 ether);
     }
+
     function testWithdrawFundsRenounced() public {
         template.openMint();
-        template.mint{ value: 0.01 ether }(address(42), 1);
+        template.mint{value: 0.01 ether}(address(42), 1);
         template.renounceOwnership();
         uint256 dust = address(42).balance;
         template.withdrawFunds(address(69), 0.002 ether);
         require((address(42).balance - dust) == 0.002 ether);
     }
+
     function testWithdrawFunds_Unauthorized() public {
         template.openMint();
-        template.mint{ value: 0.01 ether }(address(42), 1);
+        template.mint{value: 0.01 ether}(address(42), 1);
         hevm.prank(address(42));
         hevm.expectRevert(Ownable.Unauthorized.selector);
         template.withdrawFunds(address(42), 0.002 ether);
     }
 
     function testReceive() public {
-        (bool success, ) = payable(address(template)).call{ value: 1 ether }("");
+        (bool success,) = payable(address(template)).call{value: 1 ether}("");
         require(success);
         require(wethToken.balanceOf(address(template.vault())) == 1 ether);
     }
+
     function testFallback() public {
-        IFallback(address(template)).doesntExist{ value: 1 ether }(420);
+        IFallback(address(template)).doesntExist{value: 1 ether}(420);
         require(wethToken.balanceOf(address(template.vault())) == 1 ether);
     }
+
     function testOnERC721Received() public {
         hevm.startPrank(nft.ownerOf(42));
         nft.approve(address(this), 42);
@@ -667,13 +641,15 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         hevm.stopPrank();
         require(nft.ownerOf(42) == address(template.vault()), "NFT redirection failed");
     }
+
     function testOnERC721Received_UnwantedNFT() public {
         hevm.expectRevert(ERC721M.UnwantedNFT.selector);
         testNFT.safeTransferFrom(address(this), address(template), 1);
     }
+
     function test_processPayment() public {
         template.openMint();
-        IFallback(address(template)).doesntExist{ value: 1 ether }(420);
+        IFallback(address(template)).doesntExist{value: 1 ether}(420);
         require(template.balanceOf(address(this)) > 0);
     }
 }

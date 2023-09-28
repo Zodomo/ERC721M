@@ -23,7 +23,6 @@ interface IFactory {
  * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
  */
 abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
-
     error BadInput();
     error Overdraft();
     error Blacklisted();
@@ -50,10 +49,10 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     }
 
     // Configure royalty receiver and royalty fee
-    function configureRoyalties(address _recipient, uint96 _royaltyFee) external virtual payable onlyOwner {
+    function configureRoyalties(address _recipient, uint96 _royaltyFee) external payable virtual onlyOwner {
         // Revert if royalties are disabled
-        (address receiver, ) = royaltyInfo(0, 0);
-        if (receiver == address(0)) { revert RoyaltiesDisabled(); }
+        (address receiver,) = royaltyInfo(0, 0);
+        if (receiver == address(0)) revert RoyaltiesDisabled();
 
         _setDefaultRoyalty(_recipient, _royaltyFee);
         _setTokenRoyalty(0, receiver, _royaltyFee);
@@ -61,25 +60,26 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     }
 
     // Configure royalty receiver and royalty fee for a specific tokenId
-    function configureRoyaltiesForId(
-        uint256 _tokenId,
-        address _recipient,
-        uint96 _feeNumerator
-    ) external virtual payable onlyOwner {
+    function configureRoyaltiesForId(uint256 _tokenId, address _recipient, uint96 _feeNumerator)
+        external
+        payable
+        virtual
+        onlyOwner
+    {
         // Revert if royalties are disabled
-        (address receiver, ) = royaltyInfo(0, 0);
-        if (receiver == address(0)) { revert RoyaltiesDisabled(); }
+        (address receiver,) = royaltyInfo(0, 0);
+        if (receiver == address(0)) revert RoyaltiesDisabled();
         // Revert if resetting tokenId 0 as it is treated as royalties enablement status
-        if (_tokenId == 0) { revert BadInput(); }
-        
+        if (_tokenId == 0) revert BadInput();
+
         // Reset token royalty if fee is 0, else set it
-        if (_feeNumerator == 0) { _resetTokenRoyalty(_tokenId); }
-        else { _setTokenRoyalty(_tokenId, _recipient, _feeNumerator); }
+        if (_feeNumerator == 0) _resetTokenRoyalty(_tokenId);
+        else _setTokenRoyalty(_tokenId, _recipient, _feeNumerator);
         // Event is emitted in _setDefaultRoyalty()
     }
 
     // Irreversibly isable royalties by resetting tokenId 0 royalty to (address(0), 0)
-    function disableRoyalties() external virtual payable onlyOwner {
+    function disableRoyalties() external payable virtual onlyOwner {
         _deleteDefaultRoyalty();
         _resetTokenRoyalty(0);
         emit RoyaltyDisabled();
@@ -87,7 +87,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
 
     // Configure which assets are blacklisted
     // No differentiation needed between coins and NFTs as a generalized balanceOf interface is utilized
-    function configureBlacklist(address[] memory blacklist) external virtual payable onlyOwner {
+    function configureBlacklist(address[] memory blacklist) external payable virtual onlyOwner {
         blacklistedAssets = blacklist;
         emit BlacklistConfigured(blacklist);
     }
@@ -103,12 +103,12 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
                 ++i;
             }
         }
-        if (count > 0) { revert Blacklisted(); }
+        if (count > 0) revert Blacklisted();
     }
 
     // Change recipient address for non-aligned mint funds
     function _changeFundsRecipient(address _to) internal virtual {
-        if (_to == address(0)) { revert ZeroAddress(); }
+        if (_to == address(0)) revert ZeroAddress();
         fundsRecipient = _to;
     }
 
@@ -117,21 +117,23 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
         // Ensure minter and recipient don't hold blacklisted collections
         _enforceBlacklist(msg.sender, _to);
         // Prevent minting zero NFTs
-        if (_amount == 0) { revert ZeroQuantity(); }
+        if (_amount == 0) revert ZeroQuantity();
         // Calculate allocation
         uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 10000);
         // Count allocation
         totalAllocated += mintAlloc;
 
         // Send tithe to AlignmentVault
-        payable(address(vault)).call{ value: mintAlloc }("");
+        payable(address(vault)).call{value: mintAlloc}("");
 
         // Process ERC721 mints
         // totalSupply is read once externally from loop to reduce SLOADs to save gas
         uint256 supply = totalSupply;
         for (uint256 i; i < _amount;) {
             super._mint(_to, ++supply);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         totalSupply += uint32(_amount);
     }
@@ -139,12 +141,12 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     // Withdraw non-aligned mint funds to recipient
     function _withdrawFunds(address _to, uint256 _amount) internal virtual {
         // Confirm inputs are good
-        if (_to == address(0)) { revert ZeroAddress(); }
-        if (_amount > address(this).balance && _amount != type(uint256).max) { revert Overdraft(); }
-        if (_amount == type(uint256).max) { _amount = address(this).balance; }
+        if (_to == address(0)) revert ZeroAddress();
+        if (_amount > address(this).balance && _amount != type(uint256).max) revert Overdraft();
+        if (_amount == type(uint256).max) _amount = address(this).balance;
 
         // Process withdrawal
-        (bool success, ) = payable(_to).call{ value: _amount }("");
-        if (!success) { revert TransferFailed(); }
+        (bool success,) = payable(_to).call{value: _amount}("");
+        if (!success) revert TransferFailed();
     }
 }

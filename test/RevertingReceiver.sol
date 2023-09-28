@@ -2,6 +2,9 @@
 pragma solidity ^0.8.20;
 
 contract RevertingReceiver {
-    constructor() { }
-    receive() external payable { revert(""); }
+    constructor() {}
+
+    receive() external payable {
+        revert("");
+    }
 }

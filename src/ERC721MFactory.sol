@@ -28,7 +28,6 @@ interface IInitialize {
  * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
  */
 contract ERC721MFactory is Ownable {
-
     event Deployed(address indexed deployer, address indexed collection);
 
     struct Preconfiguration {
@@ -54,7 +53,7 @@ contract ERC721MFactory is Ownable {
     // Update implementation address for new clones
     // NOTE: Does not update implementation of prior clones
     function updateImplementation(address _implementation) external virtual onlyOwner {
-        if (_implementation == implementation) { revert(); }
+        if (_implementation == implementation) revert();
         implementation = _implementation;
     }
 
@@ -91,7 +90,9 @@ contract ERC721MFactory is Ownable {
 
         Preconfiguration memory preconf = _preconfigurations[msg.sender];
         IInitialize(deployment).initialize(_allocation, _royaltyFee, _alignedNFT, _owner, _vaultId);
-        IInitialize(deployment).initializeMetadata(preconf.name, preconf.symbol, preconf.baseURI, preconf.contractURI, preconf.maxSupply, preconf.price);
+        IInitialize(deployment).initializeMetadata(
+            preconf.name, preconf.symbol, preconf.baseURI, preconf.contractURI, preconf.maxSupply, preconf.price
+        );
         IInitialize(deployment).disableInitializers();
         // Clear preconfig data post-deployment
         delete _preconfigurations[msg.sender];
@@ -112,7 +113,9 @@ contract ERC721MFactory is Ownable {
 
         Preconfiguration memory preconf = _preconfigurations[msg.sender];
         IInitialize(deployment).initialize(_allocation, _royaltyFee, _alignedNFT, _owner, _vaultId);
-        IInitialize(deployment).initializeMetadata(preconf.name, preconf.symbol, preconf.baseURI, preconf.contractURI, preconf.maxSupply, preconf.price);
+        IInitialize(deployment).initializeMetadata(
+            preconf.name, preconf.symbol, preconf.baseURI, preconf.contractURI, preconf.maxSupply, preconf.price
+        );
         IInitialize(deployment).disableInitializers();
     }
 }
