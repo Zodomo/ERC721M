@@ -40,11 +40,18 @@ contract ERC721MFactory is Ownable {
     }
 
     address public implementation;
+    // msg.sender => preconfiguration values
     mapping(address => Preconfiguration) private _preconfigurations;
-    mapping(address => address) public contractDeployers;
+    // Contract address => deployer address
+    mapping(address => address) public contractOwners;
 
     constructor(address _owner, address _implementation) payable {
         _initializeOwner(_owner);
+        implementation = _implementation;
+    }
+
+    function updateImplementation(address _implementation) external virtual onlyOwner {
+        if (_implementation == implementation) { revert(); }
         implementation = _implementation;
     }
 
@@ -55,7 +62,7 @@ contract ERC721MFactory is Ownable {
         string memory _contractURI, // Full Contract URI for NFT collection information
         uint256 _maxSupply, // Max mint supply
         uint256 _price // Standard mint price
-    ) public {
+    ) external virtual {
         Preconfiguration memory preconf;
         preconf.name = _name;
         preconf.symbol = _symbol;
@@ -73,9 +80,9 @@ contract ERC721MFactory is Ownable {
         address _alignedNFT, // Address of aligned NFT collection mint funds are being dedicated to
         address _owner, // Contract owner, manually specified for clarity
         uint256 _vaultId // NFTX vault ID
-    ) public returns (address deployment) {
+    ) external virtual returns (address deployment) {
         deployment = LibClone.clone(implementation);
-        contractDeployers[deployment] = msg.sender;
+        contractOwners[deployment] = msg.sender;
         emit Deployed(msg.sender, deployment);
 
         Preconfiguration memory preconf = _preconfigurations[msg.sender];
@@ -91,9 +98,9 @@ contract ERC721MFactory is Ownable {
         address _owner, // Contract owner, manually specified for clarity
         uint256 _vaultId, // NFTX vault ID
         bytes32 _salt // Used to deterministically deploy to an address of choice
-    ) public returns (address deployment) {
+    ) external virtual returns (address deployment) {
         deployment = LibClone.cloneDeterministic(implementation, _salt);
-        contractDeployers[deployment] = msg.sender;
+        contractOwners[deployment] = msg.sender;
         emit Deployed(msg.sender, deployment);
 
         Preconfiguration memory preconf = _preconfigurations[msg.sender];

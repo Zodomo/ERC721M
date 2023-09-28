@@ -266,55 +266,63 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
         int64[] memory allocations = new int64[](1);
+        uint64[] memory userMax = new uint64[](1);
         uint256[] memory tokenBalances = new uint256[](1);
         uint256[] memory prices = new uint256[](1);
         assets[0] = address(testToken);
         status[0] = true;
         allocations[0] = 10;
+        userMax[0] = 10;
         tokenBalances[0] = 2 ether;
         prices[0] = 0.025 ether;
-        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
     }
     function configureMintDiscountERC721() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
         int64[] memory allocations = new int64[](1);
+        uint64[] memory userMax = new uint64[](1);
         uint256[] memory tokenBalances = new uint256[](1);
         uint256[] memory prices = new uint256[](1);
         assets[0] = address(testNFT);
         status[0] = true;
         allocations[0] = 10;
+        userMax[0] = 10;
         tokenBalances[0] = 2;
         prices[0] = 0.025 ether;
-        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
     }
     function testConfigureMintDiscountERC20() public {
         configureMintDiscountERC20();
         (
+            bool active,
             int64 supply,
             int64 allocated,
-            bool active,
-            uint256 tokenBalance,
-            uint256 mintPrice
+            uint64 userMax,
+            uint256 mintPrice,
+            uint256 tokenBalance
         ) = template.mintDiscountInfo(address(testToken));
         require(supply == 10, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
+        require(userMax == 10, "userMax error");
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
     function testConfigureMintDiscountERC721() public {
         configureMintDiscountERC721();
         (
+            bool active,
             int64 supply,
             int64 allocated,
-            bool active,
-            uint256 tokenBalance,
-            uint256 mintPrice
+            uint64 userMax,
+            uint256 mintPrice,
+            uint256 tokenBalance
         ) = template.mintDiscountInfo(address(testNFT));
         require(supply == 10, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
+        require(userMax == 10, "userMax error");
         require(tokenBalance == 2, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
@@ -322,57 +330,65 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](2);
         int64[] memory allocations = new int64[](1);
+        uint64[] memory userMax = new uint64[](1);
         uint256[] memory tokenBalances = new uint256[](1);
         uint256[] memory prices = new uint256[](1);
         assets[0] = address(testToken);
         status[0] = true;
         status[1] = false;
         allocations[0] = 10;
+        userMax[0] = 10;
         tokenBalances[0] = 2 ether;
         prices[0] = 0.025 ether;
         hevm.expectRevert(LockRegistry.ArrayLengthMismatch.selector);
-        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
     }
     function testConfigureMintDiscount_Underflow() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
         int64[] memory allocations = new int64[](1);
+        uint64[] memory userMax = new uint64[](1);
         uint256[] memory tokenBalances = new uint256[](1);
         uint256[] memory prices = new uint256[](1);
         assets[0] = address(testToken);
         status[0] = true;
         allocations[0] = 10;
+        userMax[0] = 10;
         tokenBalances[0] = 2 ether;
         prices[0] = 0.025 ether;
-        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
         allocations[0] = -11;
         hevm.expectRevert(ERC721M.Underflow.selector);
-        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
     }
     function testConfigureMintDiscountReduceToZero() public {
         address[] memory assets = new address[](1);
         bool[] memory status = new bool[](1);
         int64[] memory allocations = new int64[](1);
+        uint64[] memory userMax = new uint64[](1);
         uint256[] memory tokenBalances = new uint256[](1);
         uint256[] memory prices = new uint256[](1);
         assets[0] = address(testToken);
         status[0] = true;
         allocations[0] = 10;
+        userMax[0] = 10;
         tokenBalances[0] = 2 ether;
         prices[0] = 0.025 ether;
-        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
         allocations[0] = -10;
-        template.configureMintDiscount(assets, status, allocations, tokenBalances, prices);
+        template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
         (
+            bool active,
             int64 supply,
             int64 allocated,
-            bool active,
-            uint256 tokenBalance,
-            uint256 mintPrice
+            uint64 _userMax,
+            uint256 mintPrice,
+            uint256 tokenBalance
         ) = template.mintDiscountInfo(address(testToken));
         require(supply == 0, "supply error");
         require(allocated == 0, "allocated error");
         require(active == false, "active error");
+        require(_userMax == 10, "userMax error");
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
@@ -390,15 +406,17 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(wethToken.balanceOf(address(template.vault())) == 0.01 ether, "vault balance error");
         require(address(template).balance == 0.04 ether, "contract balance error");
         (
+            bool active,
             int64 supply,
             int64 allocated,
-            bool active,
-            uint256 tokenBalance,
-            uint256 mintPrice
+            uint64 userMax,
+            uint256 mintPrice,
+            uint256 tokenBalance
         ) = template.mintDiscountInfo(address(testToken));
         require(supply == 8, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
+        require(userMax == 10, "userMax error");
         require(tokenBalance == 2 ether, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
@@ -416,15 +434,17 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         require(wethToken.balanceOf(address(template.vault())) == 0.01 ether, "vault balance error");
         require(address(template).balance == 0.04 ether, "contract balance error");
         (
+            bool active,
             int64 supply,
             int64 allocated,
-            bool active,
-            uint256 tokenBalance,
-            uint256 mintPrice
+            uint64 userMax,
+            uint256 mintPrice,
+            uint256 tokenBalance
         ) = template.mintDiscountInfo(address(testNFT));
         require(supply == 8, "supply error");
         require(allocated == 10, "allocated error");
         require(active == true, "active error");
+        require(userMax == 10, "userMax error");
         require(tokenBalance == 2, "tokenBalance error");
         require(mintPrice == 0.025 ether, "mintPrice error");
     }
@@ -444,6 +464,29 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         address to = address(this);
         uint64 amount = 11;
         uint256 payment = 0.275 ether;
+        hevm.expectRevert(ERC721M.SpecialExceeded.selector);
+        template.mintDiscount{ value: payment }(asset, to, amount);
+    }
+    function testMintDiscount_SpecialExceeded2() public {
+        address[] memory assets = new address[](1);
+        bool[] memory status = new bool[](1);
+        int64[] memory allocations = new int64[](1);
+        uint64[] memory userMax = new uint64[](1);
+        uint256[] memory tokenBalances = new uint256[](1);
+        uint256[] memory prices = new uint256[](1);
+        assets[0] = address(testNFT);
+        status[0] = true;
+        allocations[0] = 10;
+        userMax[0] = 5;
+        tokenBalances[0] = 2;
+        prices[0] = 0.025 ether;
+        template.configureMintDiscount(assets, status, allocations, userMax, tokenBalances, prices);
+        template.openMint();
+
+        address asset = address(testNFT);
+        address to = address(this);
+        uint64 amount = 6;
+        uint256 payment = 0.15 ether;
         hevm.expectRevert(ERC721M.SpecialExceeded.selector);
         template.mintDiscount{ value: payment }(asset, to, amount);
     }
@@ -487,10 +530,8 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = 42;
         template.fixInventory(tokenIds);
-        hevm.deal(address(template.vault()), 10 ether);
-        template.alignLiquidity();
         require(nft.balanceOf(address(template)) == 0);
-        require(nft.balanceOf(address(template.vault())) == 0);
+        require(nft.balanceOf(address(template.vault())) == 1);
     }
 
     function testCheckInventory() public {

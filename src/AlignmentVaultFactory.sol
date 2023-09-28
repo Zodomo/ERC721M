@@ -17,15 +17,23 @@ contract AlignmentVaultFactory is Ownable {
     event Deployed(address indexed deployer, address indexed collection);
 
     address public implementation;
+    // Vault address => deployer address
+    mapping(address => address) public vaultOwners;
 
     constructor(address _owner, address _implementation) payable {
         _initializeOwner(_owner);
         implementation = _implementation;
     }
 
+    function updateImplementation(address _implementation) external virtual onlyOwner {
+        if (_implementation == implementation) { revert(); }
+        implementation = _implementation;
+    }
+
     // Deploy MiyaMints flavored ERC721M collection
-    function deploy(address _erc721, uint256 _vaultId) public returns (address deployment) {
+    function deploy(address _erc721, uint256 _vaultId) external virtual returns (address deployment) {
         deployment = LibClone.clone(implementation);
+        vaultOwners[deployment] = msg.sender;
         emit Deployed(msg.sender, deployment);
 
         IInitialize(deployment).initialize(_erc721, msg.sender, _vaultId);
@@ -36,8 +44,9 @@ contract AlignmentVaultFactory is Ownable {
         address _erc721,
         uint256 _vaultId,
         bytes32 _salt
-    ) public returns (address deployment) {
+    ) external virtual returns (address deployment) {
         deployment = LibClone.cloneDeterministic(implementation, _salt);
+        vaultOwners[deployment] = msg.sender;
         emit Deployed(msg.sender, deployment);
 
         IInitialize(deployment).initialize(_erc721, msg.sender, _vaultId);

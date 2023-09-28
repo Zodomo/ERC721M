@@ -46,6 +46,10 @@ contract AlignmentVaultTest is DSTestPlus, ERC721Holder  {
     function testDisableInitializers() public {
         alignmentVault.disableInitializers();
     }
+    function testRenounceOwnership() public {
+        alignmentVault.renounceOwnership();
+        require(alignmentVault.owner() != address(0));
+    }
 
     function testManualVaultIdInitialization() public {
         alignmentVaultManual = new TestingAlignmentVault();

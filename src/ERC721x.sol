@@ -41,17 +41,17 @@ abstract contract ERC721x is ERC721, LockRegistry {
 		super.safeTransferFrom(_from, _to, _tokenId, _data);
 	}
 
-	function lockId(uint256 _id) public override virtual {
+	function lockId(uint256 _id) external override virtual {
 		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_lockId(_id);
 	}
 
-	function unlockId(uint256 _id) public override virtual {
+	function unlockId(uint256 _id) external override virtual {
 		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_unlockId(_id);
 	}
 
-	function freeId(uint256 _id, address _contract) public override virtual {
+	function freeId(uint256 _id, address _contract) external override virtual {
 		if (!_exists(_id)) { revert TokenDoesNotExist(); }
 		_freeId(_id, _contract);
 	}

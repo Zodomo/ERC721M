@@ -11,6 +11,7 @@ contract FactoryTest is DSTestPlus {
 
     AlignmentVault public vaultImplementation = new AlignmentVault();
     ERC721M public implementation;
+    ERC721M public implementation2;
     ERC721MFactory public factory;
 
     function setUp() public {
@@ -21,7 +22,17 @@ contract FactoryTest is DSTestPlus {
         hevm.etch(address(7777777), runtimeBytecode);
 
         implementation = new ERC721M();
+        implementation2 = new ERC721M();
         factory = new ERC721MFactory(address(this), address(implementation));
+    }
+
+    function testUpdateImplementation() public {
+        factory.updateImplementation(address(implementation2));
+        require(factory.implementation() == address(implementation2));
+    }
+    function testUpdateImplementationNoChange() public {
+        hevm.expectRevert(bytes(""));
+        factory.updateImplementation(address(implementation));
     }
 
     function deployContract() public returns (address) {
@@ -45,7 +56,7 @@ contract FactoryTest is DSTestPlus {
             owner,
             vaultId
         );
-        require(factory.contractDeployers(deployment) == address(this), "deployer mapping error");
+        require(factory.contractOwners(deployment) == address(this), "deployer mapping error");
         return deployment;
     }
 
@@ -72,7 +83,7 @@ contract FactoryTest is DSTestPlus {
             vaultId,
             salt
         );
-        require(factory.contractDeployers(deployment) == address(this), "deployer mapping error");
+        require(factory.contractOwners(deployment) == address(this), "deployer mapping error");
         return deployment;
     }
 

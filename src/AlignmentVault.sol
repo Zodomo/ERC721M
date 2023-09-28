@@ -50,7 +50,7 @@ contract AlignmentVault is Ownable, Initializable {
         address _erc721,
         address _owner,
         uint256 _vaultId
-    ) external initializer {
+    ) external virtual payable initializer {
         // Initialize contract ownership
         _initializeOwner(_owner);
         // Set target NFT collection for alignment
@@ -96,11 +96,12 @@ contract AlignmentVault is Ownable, Initializable {
         IERC20(address(_WETH)).approve(address(_liqHelper), type(uint256).max);
         nftxInventory.approve(address(_liqHelper), type(uint256).max);
     }
-    function disableInitializers() external { _disableInitializers(); }
+    function disableInitializers() external virtual payable { _disableInitializers(); }
+    function renounceOwnership() public virtual override payable { }
     
     // Use NFTX SLP for aligned NFT as floor price oracle and for determining WETH required for adding liquidity
     // Using NFTX as a price oracle is intentional, as Chainlink/others weren't sufficient or too expensive
-    function _estimateFloor() internal view returns (uint256) {
+    function _estimateFloor() internal virtual view returns (uint256) {
         // Retrieve SLP reserves to calculate price of NFT token in WETH
         (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(address(nftxLiquidity)).getReserves();
         // Calculate value of NFT spot in WETH using SLP reserves values
@@ -112,7 +113,7 @@ contract AlignmentVault is Ownable, Initializable {
         return (spotPrice);
     }
 
-    function alignLiquidity() external onlyOwner {
+    function alignLiquidity() external virtual payable onlyOwner {
         // Cache vaultId to save gas
         uint256 _vaultId = vaultId;
         // Wrap all ETH, if any
@@ -172,7 +173,7 @@ contract AlignmentVault is Ownable, Initializable {
     }
 
     // Claim NFTWETH SLP yield
-    function claimYield(address _recipient) public onlyOwner {
+    function claimYield(address _recipient) external virtual payable onlyOwner {
         // Cache vaultId to save gas
         uint256 _vaultId = vaultId;
         // Claim SLP rewards
@@ -206,7 +207,7 @@ contract AlignmentVault is Ownable, Initializable {
     }
 
     // Check contract inventory for unsafe transfers of aligned NFTs
-    function checkInventory(uint256[] memory _tokenIds) public {
+    function checkInventory(uint256[] memory _tokenIds) external virtual payable {
         // Cache nftsHeld to reduce SLOADs
         uint256[] memory inventory = nftsHeld;
         // Iterate through passed array
@@ -233,7 +234,7 @@ contract AlignmentVault is Ownable, Initializable {
     }
 
     // Rescue tokens from vault and/or liq helper (use address(0) for ETH), returns 0 for aligned assets
-    function rescueERC20(address _token, address _to) public onlyOwner returns (uint256) {
+    function rescueERC20(address _token, address _to) external virtual payable onlyOwner returns (uint256) {
         // If address(0), rescue ETH from liq helper to vault
         if (_token == address(0)) {
             _liqHelper.emergencyWithdrawEther();
@@ -265,7 +266,7 @@ contract AlignmentVault is Ownable, Initializable {
         address _token, 
         address _to,
         uint256 _tokenId
-    ) public onlyOwner {
+    ) external virtual payable onlyOwner {
         // If _address is for the aligned collection, revert
         if (address(erc721) == _token) { revert AlignedAsset(); }
         // Otherwise, attempt to send to recipient
@@ -273,7 +274,7 @@ contract AlignmentVault is Ownable, Initializable {
     }
 
     // Receive logic
-    receive() external payable { _WETH.deposit{ value: msg.value }(); }
+    receive() external virtual payable { _WETH.deposit{ value: msg.value }(); }
     // Log only aligned NFTs stored in the contract, revert if sent other NFTs
     function onERC721Received(
         address,

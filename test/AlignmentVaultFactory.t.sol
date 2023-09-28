@@ -8,11 +8,22 @@ import "../src/AlignmentVaultFactory.sol";
 contract FactoryTest is DSTestPlus {
 
     AlignmentVault public implementation;
+    AlignmentVault public implementation2;
     AlignmentVaultFactory public factory;
 
     function setUp() public {
         implementation = new AlignmentVault();
+        implementation2 = new AlignmentVault();
         factory = new AlignmentVaultFactory(address(this), address(implementation));
+    }
+
+    function testUpdateImplementation() public {
+        factory.updateImplementation(address(implementation2));
+        require(factory.implementation() == address(implementation2));
+    }
+    function testUpdateImplementationNoChange() public {
+        hevm.expectRevert(bytes(""));
+        factory.updateImplementation(address(implementation));
     }
 
     function deployContract() public returns (address) {

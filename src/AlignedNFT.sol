@@ -46,7 +46,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     }
 
     // Configure royalty receiver and royalty fee
-    function configureRoyalties(address _recipient, uint96 _royaltyFee) public onlyOwner {
+    function configureRoyalties(address _recipient, uint96 _royaltyFee) external virtual payable onlyOwner {
         // Revert if royalties are disabled
         (address receiver, ) = royaltyInfo(0, 0);
         if (receiver == address(0)) { revert RoyaltiesDisabled(); }
@@ -61,7 +61,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
         uint256 _tokenId,
         address _recipient,
         uint96 _feeNumerator
-    ) public onlyOwner {
+    ) external virtual payable onlyOwner {
         // Revert if royalties are disabled
         (address receiver, ) = royaltyInfo(0, 0);
         if (receiver == address(0)) { revert RoyaltiesDisabled(); }
@@ -75,7 +75,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     }
 
     // Irreversibly isable royalties by resetting tokenId 0 royalty to (address(0), 0)
-    function disableRoyalties() public onlyOwner {
+    function disableRoyalties() external virtual payable onlyOwner {
         _deleteDefaultRoyalty();
         _resetTokenRoyalty(0);
         emit RoyaltyDisabled();
@@ -83,13 +83,13 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
 
     // Configure which assets are blacklisted
     // No differentiation needed between coins and NFTs as a generalized balanceOf interface is utilized
-    function configureBlacklist(address[] memory blacklist) public onlyOwner {
+    function configureBlacklist(address[] memory blacklist) external virtual payable onlyOwner {
         blacklistedAssets = blacklist;
         emit BlacklistConfigured(blacklist);
     }
 
     // Blacklist function to prevent mints to holders of prohibited collections
-    function _enforceBlacklist(address _minter, address _recipient) internal {
+    function _enforceBlacklist(address _minter, address _recipient) internal virtual {
         address[] memory blacklist = blacklistedAssets;
         uint256 count;
         for (uint256 i; i < blacklist.length;) {
@@ -103,7 +103,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     }
 
     // Change recipient address for non-aligned mint funds
-    function _changeFundsRecipient(address _to) internal {
+    function _changeFundsRecipient(address _to) internal virtual {
         if (_to == address(0)) { revert ZeroAddress(); }
         fundsRecipient = _to;
     }
@@ -133,7 +133,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     }
 
     // Withdraw non-aligned mint funds to recipient
-    function _withdrawFunds(address _to, uint256 _amount) internal {
+    function _withdrawFunds(address _to, uint256 _amount) internal virtual {
         // Confirm inputs are good
         if (_to == address(0)) { revert ZeroAddress(); }
         if (_amount > address(this).balance && _amount != type(uint256).max) { revert Overdraft(); }
