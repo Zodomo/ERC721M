@@ -63,4 +63,15 @@ contract FactoryTest is DSTestPlus {
         require(deploy2 != deploy3);
         require(deploy3 != deploy0);
     }
+
+    function testInitCodeHash() public view {
+        require(factory.initCodeHash() != bytes32(0));
+    }
+
+    function testPredictDeterministicAddress(bytes32 _salt) public {
+        address erc721 = 0x5Af0D9827E0c53E4799BB226655A1de152A425a5; // Milady Maker
+        address predicted = factory.predictDeterministicAddress(_salt);
+        address deployed = factory.deployDeterministic(erc721, 392, _salt);
+        require(predicted == deployed);
+    }
 }
