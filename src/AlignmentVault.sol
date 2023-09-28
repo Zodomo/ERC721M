@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
+import "solady/auth/Ownable.sol";
 import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
 import "openzeppelin/proxy/utils/Initializable.sol";
@@ -28,8 +29,9 @@ interface INFTXStakingZap {
 /**
  * @title AlignmentVault
  * @notice This allows anything to send ETH to a vault for the purpose of permanently deepening the floor liquidity of a target NFT collection.
+ * @notice While the liquidity is locked forever, the yield can be claimed indefinitely.
  * @dev You must initialize this contract once deployed! There is a factory for this, use it!
- * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, Email: zodomo@proton.me)
+ * @author Zodomo.eth (X: @0xZodomo, Telegram: @zodomo, GitHub: Zodomo, Email: zodomo@proton.me)
  */
 contract AlignmentVault is Ownable, Initializable {
     error InvalidVaultId();
@@ -56,6 +58,7 @@ contract AlignmentVault is Ownable, Initializable {
 
     constructor() payable {}
 
+    // Initializes all contract variables and NFTX integration
     function initialize(address _erc721, address _owner, uint256 _vaultId) external payable virtual initializer {
         // Initialize contract ownership
         _initializeOwner(_owner);
@@ -74,7 +77,9 @@ contract AlignmentVault is Ownable, Initializable {
         } else {
             // Retrieve all vaults
             address[] memory vaults = _NFTX_VAULT_FACTORY.vaultsForAsset(_erc721);
+            // Revert if no vaults are returned
             if (vaults.length == 0) revert NoNFTXVault();
+            // Search for vaultId
             for (uint256 i; i < vaults.length;) {
                 if (INFTXVault(vaults[i]).vaultId() == _vaultId) {
                     index = i;
@@ -85,6 +90,7 @@ contract AlignmentVault is Ownable, Initializable {
                     ++i;
                 }
             }
+            // If vaultId wasn't found, revert
             if (index == type(uint256).max) revert InvalidVaultId();
         }
         // Derive nftxInventory token contract and vaultId if necessary
@@ -102,10 +108,12 @@ contract AlignmentVault is Ownable, Initializable {
         nftxInventory.approve(address(_liqHelper), type(uint256).max);
     }
 
+    // Recommended to disable initialization once initialized.
     function disableInitializers() external payable virtual {
         _disableInitializers();
     }
 
+    // renounceOwnership is overridden as it would render the vault useless
     function renounceOwnership() public payable virtual override {}
 
     // Use NFTX SLP for aligned NFT as floor price oracle and for determining WETH required for adding liquidity
@@ -124,6 +132,7 @@ contract AlignmentVault is Ownable, Initializable {
         return (spotPrice);
     }
 
+    // Automatically add NFTs to LP that can be afforded, sweep remaining ETH into LP, and stake at NFTX
     function alignLiquidity() external payable virtual onlyOwner {
         // Cache vaultId to save gas
         uint256 _vaultId = vaultId;
@@ -180,7 +189,7 @@ contract AlignmentVault is Ownable, Initializable {
         if (liquidity > 0) _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
     }
 
-    // Claim NFTWETH SLP yield
+    // Claim NFTWETH SLP yield, yield is compounded if address(0) is provided
     function claimYield(address _recipient) external payable virtual onlyOwner {
         // Cache vaultId to save gas
         uint256 _vaultId = vaultId;
@@ -209,7 +218,7 @@ contract AlignmentVault is Ownable, Initializable {
         _NFTX_LIQUIDITY_STAKING.deposit(_vaultId, liquidity);
     }
 
-    // Check contract inventory for unsafe transfers of aligned NFTs
+    // Check contract inventory for unsafe transfers of aligned NFTs so alignLiquidity() can see them
     function checkInventory(uint256[] memory _tokenIds) external payable virtual {
         // Cache nftsHeld to reduce SLOADs
         uint256[] memory inventory = nftsHeld;
@@ -267,8 +276,8 @@ contract AlignmentVault is Ownable, Initializable {
             return (balance);
         }
     }
+    
     // Retrieve non-aligned NFTs, but retain aligned NFTs
-
     function rescueERC721(address _token, address _to, uint256 _tokenId) external payable virtual onlyOwner {
         // If _address is for the aligned collection, revert
         if (address(erc721) == _token) revert AlignedAsset();
@@ -280,8 +289,8 @@ contract AlignmentVault is Ownable, Initializable {
     receive() external payable virtual {
         _WETH.deposit{value: msg.value}();
     }
+    
     // Log only aligned NFTs stored in the contract, revert if sent other NFTs
-
     function onERC721Received(address, address, uint256 _tokenId, bytes calldata) external virtual returns (bytes4) {
         if (msg.sender == address(erc721)) nftsHeld.push(_tokenId);
         else revert UnwantedNFT();
