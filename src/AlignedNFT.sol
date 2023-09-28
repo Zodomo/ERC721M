@@ -34,7 +34,7 @@ abstract contract AlignedNFT is ERC721x, ERC2981, Initializable {
     event RoyaltyDisabled();
     event BlacklistConfigured(address[] indexed blacklist);
 
-    address public constant vaultFactory = address(7777777);
+    address public constant vaultFactory = address(0xD7810e145F1A30C7d0B8C332326050Af5E067d43);
     IAlignmentVault public vault; // Smart contract wallet for allocated funds
     address public alignedNft; // Aligned NFT collection
     address public fundsRecipient; // Recipient of remaining non-aligned mint funds

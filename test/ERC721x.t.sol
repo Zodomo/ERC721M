@@ -14,14 +14,6 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
     IERC721 public nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
 
     function setUp() public {
-        bytes memory creationCode = hevm.getCode("AlignmentVaultFactory.sol");
-        hevm.etch(
-            address(7777777), abi.encodePacked(creationCode, abi.encode(address(this), address(vaultImplementation)))
-        );
-        (bool success, bytes memory runtimeBytecode) = address(7777777).call{value: 0}("");
-        require(success, "StdCheats deployCodeTo(string,bytes,uint256,address): Failed to create runtime bytecode.");
-        hevm.etch(address(7777777), runtimeBytecode);
-
         template = new ERC721M();
         template.initialize(2000, 500, address(nft), address(this), 0);
         template.initializeMetadata(
