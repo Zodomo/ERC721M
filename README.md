@@ -166,6 +166,10 @@ rescueERC20() and rescueERC721() are responsible for withdrawing non-aligned ass
 <br />
 withdrawFunds() allows the contract owner to claim their portion of the mint funds.
 <br />
+<br />
+<br />
+<br />
+An AlignmentVaultFactory has been deployed to <a href="https://etherscan.io/address/0xd7810e145f1a30c7d0b8c332326050af5e067d43">Etherscan</a>. Please use this in your contracts or manually to deploy AlignmentVaults, as it will be cheaper and will utilize the implementation already deployed on-chain. The factory is designed to return the current implementation address by calling the implementation() function.
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
