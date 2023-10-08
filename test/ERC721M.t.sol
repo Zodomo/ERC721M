@@ -8,7 +8,7 @@ import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
 import "../lib/solady/test/utils/mocks/MockERC721.sol";
 import "manual-tests/UnburnableERC20.sol";
 import "manual-tests/FakeSendERC20.sol";
-import "../src/AlignmentVault.sol";
+import "AlignmentVault/AlignmentVault.sol";
 import "../src/ERC721M.sol";
 
 interface IFallback {

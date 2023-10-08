@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "../src/AlignedNFT.sol";
-import "../src/AlignmentVault.sol";
+import "AlignmentVault/AlignmentVault.sol";
 
 contract TestingAlignedNFT is AlignedNFT {
     using LibString for uint256;

@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import "openzeppelin/token/ERC721/utils/ERC721Holder.sol";
 import "../src/ERC721M.sol";
-import "../src/AlignmentVault.sol";
+import "AlignmentVault/AlignmentVault.sol";
 
 contract ERC721MTest is DSTestPlus, ERC721Holder {
     using LibString for uint256;

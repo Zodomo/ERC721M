@@ -5,7 +5,7 @@ import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import "../src/ERC721M.sol";
 import "../src/IERC721M.sol";
 import "../src/ERC721MFactory.sol";
-import "../src/AlignmentVault.sol";
+import "AlignmentVault/AlignmentVault.sol";
 
 contract FactoryTest is DSTestPlus {
     AlignmentVault public vaultImplementation = new AlignmentVault();

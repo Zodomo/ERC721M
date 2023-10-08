@@ -5,7 +5,7 @@ import "openzeppelin/proxy/utils/Initializable.sol";
 import "openzeppelin/interfaces/IERC20.sol";
 import "openzeppelin/interfaces/IERC721.sol";
 import "manual-library/ProjectLibrary.sol";
-import "./IAlignmentVault.sol";
+import "AlignmentVault/IAlignmentVault.sol";
 import "./ERC721x.sol";
 import "./ERC2981.sol";
 

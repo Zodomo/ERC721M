@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "solady/../test/utils/mocks/MockERC20.sol";
+import "solady/test/utils/mocks/MockERC20.sol";
 
 contract FakeSendERC20 is MockERC20 {
     constructor(

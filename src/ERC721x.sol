@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "solady/tokens/ERC721.sol";
+import "solady/src/tokens/ERC721.sol";
 import "./LockRegistry.sol";
 
 // Sourced from / inspired by https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/erc721/ERC721x.sol

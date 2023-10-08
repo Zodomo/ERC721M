@@ -8,6 +8,7 @@ remappings = [
     "openzeppelin/=lib/openzeppelin-contracts/contracts/",
     "manual-tests/=lib/manual-tests/",
     "manual-library/=lib/manual-library/",
+    "solady/=lib/solady/",
 ]
 ignored_error_codes = [9302, 1878, 5574]
 
