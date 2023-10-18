@@ -277,8 +277,8 @@ contract ERC721M is AlignedNFT {
     }
     // Iterate through all vaulted NFTs (if any) and add what can be afforded to liq, sweep remaining funds to liq after
 
-    function alignLiquidity() external payable virtual onlyHolderOwnerFundsRecipient {
-        vault.alignLiquidity();
+    function alignMaxLiquidity() external payable virtual onlyHolderOwnerFundsRecipient {
+        vault.alignMaxLiquidity();
     }
     // Claim yield rewards from NFTX liquidity
 

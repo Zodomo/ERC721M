@@ -22,5 +22,4 @@
 	url = https://github.com/transmissions11/solmate
 [submodule "lib/AlignmentVault"]
 	path = lib/AlignmentVault
-	url = https://github.com/zodomo/AlignmentVault
-	branch = main
+	url = https://github.com/Zodomo/AlignmentVault

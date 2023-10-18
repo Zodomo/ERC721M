@@ -491,25 +491,25 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
         nft.transferFrom(nft.ownerOf(42), address(template.vault()), 42);
         hevm.stopPrank();
         hevm.deal(address(template.vault()), 10 ether);
-        template.alignLiquidity();
+        template.alignMaxLiquidity();
         require(nft.balanceOf(address(template.vault())) == 1);
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = 42;
         template.checkInventory(tokenIds);
         hevm.deal(address(template.vault()), 10 ether);
-        template.alignLiquidity();
+        template.alignMaxLiquidity();
         require(nft.balanceOf(address(template.vault())) == 0);
     }
 
-    function testAlignLiquidityNoLiquidity() public {
-        template.alignLiquidity();
+    function testalignMaxLiquidityNoLiquidity() public {
+        template.alignMaxLiquidity();
     }
 
-    function testAlignLiquidityETH() public {
+    function testalignMaxLiquidityETH() public {
         address vault = address(template.vault());
         hevm.deal(vault, 1 ether);
         require(address(vault).balance == 1 ether);
-        template.alignLiquidity();
+        template.alignMaxLiquidity();
         require(address(vault).balance == 0, "eth balance error");
     }
 
@@ -539,7 +539,7 @@ contract ERC721MTest is DSTestPlus, ERC721Holder {
 
     function testClaimYieldGenerated() public {
         hevm.deal(address(template.vault()), 100 ether);
-        template.alignLiquidity();
+        template.alignMaxLiquidity();
         weth.deposit{value: 100 ether}();
         wethToken.approve(address(sushiRouter), type(uint256).max);
         nftxInv.approve(address(sushiRouter), type(uint256).max);
