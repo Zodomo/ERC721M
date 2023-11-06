@@ -55,15 +55,17 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     function openMint() external;
     function updateApprovedContracts(address[] calldata _contracts, bool[] calldata _values) external;
 
-    function transferOwnership(address _newOwner) external payable;
-    function renounceOwnership(address _newOwner) external payable;
+    function transferOwnership(address _newOwner) external;
+    function renounceOwnership(address _newOwner) external;
 
     function mint(address _to, uint256 _amount) external payable;
 
-    function fixInventory(uint256[] memory _tokenIds) external;
-    function checkInventory(uint256[] memory _tokenIds) external;
-    function alignMaxLiquidity() external;
-    function claimYield(address _to) external;
+    function fixInventory(uint256[] memory _tokenIds) external payable;
+    function checkInventory(uint256[] memory _tokenIds) external payable;
+    function alignNfts(uint256[] memory _tokenIds) external payable;
+    function alignTokens(uint256 _amount) external payable;
+    function alignMaxLiquidity() external payable;
+    function claimYield(address _to) external payable;
     function rescueERC20(address _asset, address _to) external;
     function rescueERC721(address _asset, address _to, uint256 _tokenId) external;
     function withdrawFunds(address _to, uint256 _amount) external;

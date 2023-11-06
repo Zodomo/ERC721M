@@ -176,6 +176,16 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
 
     // >>>>>>>>>>>> [ INTERNAL FUNCTIONS ] <<<<<<<<<<<<
 
+    // Simple ownership check to reduce code reuse
+    function _checkOwnership() internal virtual {
+        // Cache owner address to save gas
+        address owner = owner();
+        // If contract is owned and caller isn't them, revert. If renounced, still process vault action.
+        if (owner != address(0) && owner != msg.sender) {
+            revert Unauthorized();
+        }
+    }
+
     // Blacklist function to prevent mints to and from holders of prohibited assets, applied even if recipient isn't minter
     function _enforceBlacklist(address _minter, address _recipient) internal virtual {
         address[] memory _blacklist = blacklist;
@@ -341,22 +351,33 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
                 ++i;
             }
         }
+        // Send any payment to AlignmentVault
+        payable(vault).call{ value: msg.value }("");
     }
 
     // Check vault inventory for unsafely sent NFTs and add them to internal accounting
     function checkInventory(uint256[] memory _tokenIds) external payable virtual {
-        IAlignmentVault(vault).checkInventory(_tokenIds);
+        IAlignmentVault(vault).checkInventory{ value: msg.value }(_tokenIds);
+    }
+
+    // Add specific tokenIds held by vault to NFTX liquidity if enough ETH/WETH is present
+    // NOTE: You do not need to fix or check inventory before this operation if tokenIds are known to be held by vault
+    function alignNfts(uint256[] memory _tokenIds) external payable virtual {
+        _checkOwnership();
+        IAlignmentVault(vault).alignNfts{ value: msg.value }(_tokenIds);
+    }
+
+    // Add specific amount of ETH/WETH held by vault and all other associated tokens to NFTX liquidity
+    // NOTE: This operation doesn't affect NFTs held by vault at all
+    function alignTokens(uint256 _amount) external payable virtual {
+        _checkOwnership();
+        IAlignmentVault(vault).alignTokens{ value: msg.value }(_amount);
     }
 
     // Iterate through all vaulted NFTs (if any) and add what can be afforded to NFTX liquidity
     // Also adds remaining ETH/WETH to NFTX liquidity, regardless of if there are NFTs left over in inventory
     function alignMaxLiquidity() external payable virtual {
-        // Cache owner address to save gas
-        address owner = owner();
-        // If contract is owned and caller isn't them, revert. If renounced, still process vault action.
-        if (owner != address(0) && owner != msg.sender) {
-            revert Unauthorized();
-        }
+        _checkOwnership();
         IAlignmentVault(vault).alignMaxLiquidity();
     }
 
@@ -372,7 +393,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
         if (owner == address(0)) {
             _to = address(0);
         }
-        IAlignmentVault(vault).claimYield(_to);
+        IAlignmentVault(vault).claimYield{ value: msg.value }(_to);
     }
 
     // >>>>>>>>>>>> [ ASSET HANDLING ] <<<<<<<<<<<<
