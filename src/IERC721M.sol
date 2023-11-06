@@ -53,6 +53,8 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     function disableRoyalties() external;
     function setBlacklist(address[] memory _blacklist) external;
     function openMint() external;
+    function increaseAlignment(uint16 _allocation) external;
+    function decreaseSupply(uint40 _maxSupply) external;
     function updateApprovedContracts(address[] calldata _contracts, bool[] calldata _values) external;
 
     function transferOwnership(address _newOwner) external;

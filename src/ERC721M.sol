@@ -50,7 +50,11 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
     // >>>>>>>>>>>> [ EVENTS ] <<<<<<<<<<<<
 
     event URILock();
+    event MintOpen();
+    event Withdraw(address indexed to, uint256 indexed amount);
     event PriceUpdate(uint80 indexed price);
+    event SupplyUpdate(uint40 indexed supply);
+    event AlignmentUpdate(uint16 indexed allocation);
     event BlacklistUpdate(address[] indexed blacklist);
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
     event RoyaltyUpdate(uint256 indexed tokenId, address indexed receiver, uint96 indexed royaltyFee);
@@ -181,9 +185,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
         // Cache owner address to save gas
         address owner = owner();
         // If contract is owned and caller isn't them, revert. If renounced, still process vault action.
-        if (owner != address(0) && owner != msg.sender) {
-            revert Unauthorized();
-        }
+        if (owner != address(0) && owner != msg.sender) revert Unauthorized();
     }
 
     // Blacklist function to prevent mints to and from holders of prohibited assets, applied even if recipient isn't minter
@@ -304,6 +306,23 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
     // Open mint functions
     function openMint() external virtual onlyOwner {
         mintOpen = true;
+        emit MintOpen();
+    }
+
+    // Increase mint alignment allocation
+    // NOTE: There is and will be no function to decrease this value. This operation is one-way only.
+    function increaseAlignment(uint16 _allocation) external virtual onlyOwner {
+        if (_allocation <= allocation || _allocation > 10000) revert Invalid();
+        allocation = _allocation;
+        emit AlignmentUpdate(_allocation);
+    }
+
+    // Decrease token maxSupply
+    // NOTE: There is and will be no function to increase supply. This operation is one-way only.
+    function decreaseSupply(uint40 _maxSupply) external virtual onlyOwner {
+        if (_maxSupply >= maxSupply) revert Invalid();
+        maxSupply = _maxSupply;
+        emit SupplyUpdate(_maxSupply);
     }
 
     // Restrict ability to update approved ERC721x-supporting contract status to owner
@@ -316,13 +335,9 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
         // Cache owner address to save gas
         address owner = owner();
         // If contract is owned and caller isn't them, revert.
-        if (owner != address(0) && owner != msg.sender) {
-            revert Unauthorized();
-        }
+        if (owner != address(0) && owner != msg.sender) revert Unauthorized();
         // If contract is renounced, convert _to to vault
-        if (owner == address(0)) {
-            _to = vault;
-        }
+        if (owner == address(0)) _to = vault;
 
         // Confirm inputs are good
         if (_to == address(0)) revert Invalid();
@@ -332,6 +347,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
         // Process withdrawal
         (bool success,) = payable(_to).call{ value: _amount }("");
         if (!success) revert TransferFailed();
+        emit Withdraw(_to, _amount);
     }
 
     // >>>>>>>>>>>> [ ALIGNMENTVAULT INTEGRATION ] <<<<<<<<<<<<
@@ -386,13 +402,9 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
         // Cache owner address to save gas
         address owner = owner();
         // If not renounced and caller is owner, process claim
-        if (owner != address(0) && owner != msg.sender) {
-            revert Unauthorized();
-        }
+        if (owner != address(0) && owner != msg.sender) revert Unauthorized();
         // If renounced, change _to to zero address to trigger yield compounding
-        if (owner == address(0)) {
-            _to = address(0);
-        }
+        if (owner == address(0)) _to = address(0);
         IAlignmentVault(vault).claimYield{ value: msg.value }(_to);
     }
 
