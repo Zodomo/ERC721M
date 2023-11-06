@@ -26,6 +26,10 @@
   <p align="center">
     An ERC721 extension that is designed with Network Spirituality in mind.
     <br />
+    <br />
+    <b>THIS PROJECT IS CURRENTLY UNDERGOING REFACTORING AND IS NOT CONSIDERED PRODUCTION-READY.</b>
+    <br />
+    <br />
     <a href="https://github.com/Zodomo/ERC721M/issues">Report Bug</a>
     ·
     <a href="https://github.com/Zodomo/ERC721M/issues">Request Feature</a>

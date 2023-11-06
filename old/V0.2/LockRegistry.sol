@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
+import "solady/src/auth/Ownable.sol";
 import "./IERC721x.sol";
 
-// Initially sourced from https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/LockRegistry.sol
-abstract contract LockRegistry is IERC721x {
+// Sourced from / inspired by https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/LockRegistry.sol
+abstract contract LockRegistry is Ownable, IERC721x {
     error ArrayLengthMismatch();
     error LockerStillApproved();
     error NotApprovedLocker();
@@ -23,7 +24,7 @@ abstract contract LockRegistry is IERC721x {
         return lockCount[_id] == 0;
     }
 
-    function _updateApprovedContracts(address[] calldata _contracts, bool[] calldata _values) internal {
+    function updateApprovedContracts(address[] calldata _contracts, bool[] calldata _values) external onlyOwner {
         if (_contracts.length != _values.length) revert ArrayLengthMismatch();
         for (uint256 i = 0; i < _contracts.length;) {
             approvedContract[_contracts[i]] = _values[i];

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
-import "../lib/solady/src/tokens/ERC721.sol";
+import "solady/src/tokens/ERC721.sol";
 import "./LockRegistry.sol";
 
-// Initially sourced from https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/erc721/ERC721x.sol
+// Sourced from / inspired by https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/erc721/ERC721x.sol
 abstract contract ERC721x is ERC721, LockRegistry {
+    error TokenLock();
+
     /*
     *     bytes4(keccak256('freeId(uint256,address)')) == 0x94d216d6
     *     bytes4(keccak256('isUnlocked(uint256)')) == 0x72abc8b7

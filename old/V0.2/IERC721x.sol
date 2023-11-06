@@ -8,10 +8,8 @@ pragma solidity ^0.8.20;
  *    -"-"-
  */
 
-// Sourced from: https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/interfaces/IERC721x.sol
+// Sourced from / inspired by https://github.com/OwlOfMoistness/ERC721x/blob/master/contracts/interfaces/IERC721x.sol
 interface IERC721x {
-    error TokenLock();
-    
     /**
      * @dev Returns if the token is locked (non-transferrable) or not.
      */
