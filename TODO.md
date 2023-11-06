@@ -1,2 +1,2 @@
-1. Implement referrals
-2. Reimplement custom mint logic
+1. Reimplement custom mint logic
+2. Implement referrals for custom mints
