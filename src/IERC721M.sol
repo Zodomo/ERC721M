@@ -22,9 +22,17 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     error RoyaltiesDisabled();
     error InsufficientPayment();
 
+    // >>>>>>>>>>>> [ EVENTS ] <<<<<<<<<<<<
+
     event URILock();
+    event MintOpen();
+    event Withdraw(address indexed to, uint256 indexed amount);
     event PriceUpdate(uint80 indexed price);
+    event SupplyUpdate(uint40 indexed supply);
+    event AlignmentUpdate(uint16 indexed allocation);
     event BlacklistUpdate(address[] indexed blacklist);
+    event ReferralFeePaid(address indexed referral, uint256 indexed amount);
+    event ReferralFeeUpdate(uint16 indexed referralFee);
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
     event RoyaltyUpdate(uint256 indexed tokenId, address indexed receiver, uint96 indexed royaltyFee);
     event RoyaltyDisabled();
@@ -45,6 +53,7 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     function allocation() external view returns (uint16);
     function blacklist(uint256 _index) external view returns (address);
 
+    function setReferralFee(uint16 _referralFee) external;
     function setBaseURI(string memory _baseURI) external;
     function lockURI() external;
     function setPrice(uint256 _price) external;
@@ -61,6 +70,7 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     function renounceOwnership(address _newOwner) external;
 
     function mint(address _to, uint256 _amount) external payable;
+    function mint(address _to, uint256 _amount, address _referral) external payable;
 
     function fixInventory(uint256[] memory _tokenIds) external payable;
     function checkInventory(uint256[] memory _tokenIds) external payable;

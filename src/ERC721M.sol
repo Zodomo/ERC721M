@@ -7,6 +7,7 @@ import "../lib/solady/src/auth/Ownable.sol";
 import "./ERC721x.sol";
 import "../lib/openzeppelin-contracts/contracts/token/common/ERC2981.sol";
 import "../lib/openzeppelin-contracts/contracts/proxy/utils/Initializable.sol";
+import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "../lib/solady/src/utils/LibString.sol";
 import "../lib/solady/src/utils/FixedPointMathLib.sol";
 import "../lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
@@ -30,7 +31,7 @@ interface IFactory {
  * @notice A NFT template that can be configured to automatically send a portion of mint funds to an AlignmentVault
  * @custom:github https://github.com/Zodomo/ERC721M
  */
-contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
+contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     using LibString for uint256; // Used to convert uint256 tokenId to string for tokenURI()
 
     // >>>>>>>>>>>> [ ERRORS ] <<<<<<<<<<<<
@@ -56,6 +57,8 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
     event SupplyUpdate(uint40 indexed supply);
     event AlignmentUpdate(uint16 indexed allocation);
     event BlacklistUpdate(address[] indexed blacklist);
+    event ReferralFeePaid(address indexed referral, uint256 indexed amount);
+    event ReferralFeeUpdate(uint16 indexed referralFee);
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
     event RoyaltyUpdate(uint256 indexed tokenId, address indexed receiver, uint96 indexed royaltyFee);
     event RoyaltyDisabled();
@@ -80,6 +83,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
     address public alignedNft;
     address public vault;
     uint80 public price;
+    uint16 public referralFee;
     bool public uriLocked;
     bool public mintOpen;
     address[] public blacklist;
@@ -205,22 +209,30 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
     // >>>>>>>>>>>> [ MINT LOGIC ] <<<<<<<<<<<<
 
     // Solady ERC721 _mint override to implement mint funds alignment and blacklist
-    function _mint(address _to, uint256 _amount) internal override {
+    function _mint(address _to, uint256 _amount, address _referral) internal {
         // Prevent bad inputs
         if (_to == address(0) || _amount == 0) revert Invalid();
         // Ensure minter and recipient don't hold blacklisted assets
         _enforceBlacklist(msg.sender, _to);
         // Calculate allocation
         uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 10000);
-
         // Send aligned amount to AlignmentVault (success is intentionally not read to save gas as it cannot fail)
-        payable(address(vault)).call{value: mintAlloc}("");
+        payable(vault).call{value: mintAlloc}("");
+
+        // If _referral isn't address(0), process sending referral fee
+        // Reentrancy is handled by applying ReentrancyGuard to referral mint function [mint(address, uint256, address)]
+        if (_referral != address(0)) {
+            uint256 referralAlloc = FixedPointMathLib.fullMulDivUp(referralFee, msg.value, 10000);
+            (bool success, ) = payable(_referral).call{value: referralAlloc}("");
+            if (!success) revert TransferFailed();
+            emit ReferralFeePaid(_referral, referralAlloc);
+        }
 
         // Process ERC721 mints
         // totalSupply is read once externally from loop to reduce SLOADs to save gas
         uint256 supply = _totalSupply;
         for (uint256 i; i < _amount;) {
-            super._mint(_to, ++supply);
+            _mint(_to, ++supply);
             unchecked {
                 ++i;
             }
@@ -233,10 +245,23 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
     // Standard mint function that supports batch minting
     function mint(address _to, uint256 _amount) public payable virtual mintable(_amount) {
         if (msg.value < (price * _amount)) revert InsufficientPayment();
-        _mint(_to, _amount);
+        _mint(_to, _amount, address(0));
+    }
+
+    // Standard batch mint with referral fee support
+    function mint(address _to, uint256 _amount, address _referral) public payable virtual mintable(_amount) nonReentrant {
+        if (msg.value < (price * _amount)) revert InsufficientPayment();
+        _mint(_to, _amount, _referral);
     }
 
     // >>>>>>>>>>>> [ PERMISSIONED / OWNER FUNCTIONS ] <<<<<<<<<<<<
+
+    // Set referral fee, must be < (10000 - allocation)
+    function setReferralFee(uint16 _referralFee) external virtual onlyOwner {
+        if (_referralFee > (10000 - allocation)) revert Invalid();
+        referralFee = _referralFee;
+        emit ReferralFeeUpdate(_referralFee);
+    }
 
     // Update baseURI for entire collection
     function setBaseURI(string memory baseURI_) external virtual onlyOwner {
@@ -312,7 +337,8 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
     // Increase mint alignment allocation
     // NOTE: There is and will be no function to decrease this value. This operation is one-way only.
     function increaseAlignment(uint16 _allocation) external virtual onlyOwner {
-        if (_allocation <= allocation || _allocation > 10000) revert Invalid();
+        // Prevent reducing or oversetting alignment (keeping referralFee in mind)
+        if (_allocation <= allocation || (_allocation + referralFee) > 10000) revert Invalid();
         allocation = _allocation;
         emit AlignmentUpdate(_allocation);
     }
@@ -331,7 +357,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable {
     }
 
     // Withdraw non-allocated mint funds
-    function withdrawFunds(address _to, uint256 _amount) external virtual {
+    function withdrawFunds(address _to, uint256 _amount) external virtual nonReentrant {
         // Cache owner address to save gas
         address owner = owner();
         // If contract is owned and caller isn't them, revert.
