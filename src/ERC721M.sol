@@ -250,8 +250,21 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Standard batch mint with referral fee support
     function mint(address _to, uint256 _amount, address _referral) public payable virtual mintable(_amount) nonReentrant {
+        if (_referral == msg.sender) revert Invalid();
         if (msg.value < (price * _amount)) revert InsufficientPayment();
         _mint(_to, _amount, _referral);
+    }
+
+    // Standard single-unit mint to msg.sender (implemented for max scannner compatibility)
+    function mint() public payable virtual mintable(1) {
+        if (msg.value < price) revert InsufficientPayment();
+        _mint(msg.sender, 1, address(0));
+    }
+
+    // Standaard multi-unit mint to msg.sender (implemented for max scanner compatibility)
+    function mint(uint256 _amount) public payable virtual mintable(_amount) {
+        if (msg.value < (price * _amount)) revert InsufficientPayment();
+        _mint(msg.sender, _amount, address(0));
     }
 
     // >>>>>>>>>>>> [ PERMISSIONED / OWNER FUNCTIONS ] <<<<<<<<<<<<
