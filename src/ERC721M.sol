@@ -68,13 +68,13 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     // Address of AlignmentVaultFactory, used when deploying AlignmentVault
     address public constant vaultFactory = address(0xD7810e145F1A30C7d0B8C332326050Af5E067d43);
 
-    // >>>>>>>>>>>> [ PRIVATE VARIABLES ] <<<<<<<<<<<<
+    // >>>>>>>>>>>> [ INTERNAL VARIABLES ] <<<<<<<<<<<<
 
-    string private _name;
-    string private _symbol;
-    string private _baseURI;
-    string private _contractURI;
-    uint40 private _totalSupply;
+    string internal _name;
+    string internal _symbol;
+    string internal _baseURI;
+    string internal _contractURI;
+    uint40 internal _totalSupply;
 
     // >>>>>>>>>>>> [ PUBLIC VARIABLES ] <<<<<<<<<<<<
 
