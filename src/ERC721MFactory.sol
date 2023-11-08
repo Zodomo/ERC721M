@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "./ERC721M.sol";
 import "../lib/solady/src/utils/LibClone.sol";
 
-interface IInitialize {
+interface IERC721MInitialize {
     function initialize(
         string memory _name, // NFT collection name
         string memory _symbol, // NFT collection symbol/ticker
@@ -63,7 +63,7 @@ contract ERC721MFactory is Ownable {
     ) external virtual returns (address deployment) {
         deployment = LibClone.clone(implementation);
         contractOwners[deployment] = msg.sender;
-        IInitialize(deployment).initialize(
+        IERC721MInitialize(deployment).initialize(
             _name,
             _symbol,
             _baseURI,
@@ -76,7 +76,7 @@ contract ERC721MFactory is Ownable {
             _price,
             _vaultId
         );
-        IInitialize(deployment).disableInitializers();
+        IERC721MInitialize(deployment).disableInitializers();
         emit Deployed(msg.sender, deployment, _alignedNft, 0);
     }
 
@@ -97,7 +97,7 @@ contract ERC721MFactory is Ownable {
     ) external virtual returns (address deployment) {
         deployment = LibClone.cloneDeterministic(implementation, _salt);
         contractOwners[deployment] = msg.sender;
-        IInitialize(deployment).initialize(
+        IERC721MInitialize(deployment).initialize(
             _name,
             _symbol,
             _baseURI,
@@ -110,7 +110,7 @@ contract ERC721MFactory is Ownable {
             _price,
             _vaultId
         );
-        IInitialize(deployment).disableInitializers();
+        IERC721MInitialize(deployment).disableInitializers();
         emit Deployed(msg.sender, deployment, _alignedNft, _salt);
     }
 
