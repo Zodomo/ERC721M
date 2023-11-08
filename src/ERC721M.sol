@@ -84,9 +84,9 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     address public vault;
     uint80 public price;
     uint16 public referralFee;
+    address[] public blacklist;
     bool public uriLocked;
     bool public mintOpen;
-    address[] public blacklist;
 
     // >>>>>>>>>>>> [ MODIFIERS ] <<<<<<<<<<<<
 
