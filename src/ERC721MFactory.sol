@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./ERC721M.sol";
-import "solady/src/utils/LibClone.sol";
+import "../lib/solady/src/utils/LibClone.sol";
 
 interface IInitialize {
     function initialize(
