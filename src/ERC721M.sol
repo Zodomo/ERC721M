@@ -66,7 +66,8 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     // >>>>>>>>>>>> [ CONSTANTS ] <<<<<<<<<<<<
 
     // Address of AlignmentVaultFactory, used when deploying AlignmentVault
-    address public constant vaultFactory = address(0xD7810e145F1A30C7d0B8C332326050Af5E067d43);
+    address public constant vaultFactory = 0xD7810e145F1A30C7d0B8C332326050Af5E067d43;
+    address public constant weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     // >>>>>>>>>>>> [ INTERNAL VARIABLES ] <<<<<<<<<<<<
 
@@ -475,14 +476,18 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     // Rescue non-aligned tokens from contract, else send aligned tokens to vault
     function rescueERC20(address _asset, address _to) external virtual onlyOwner {
         uint256 balance = IERC20(_asset).balanceOf(address(this));
-        if (balance > 0) IERC20(_asset).transfer(_to, balance);
+        if (_asset == weth) {
+            if (balance > 0) IERC20(_asset).transfer(vault, balance);
+        } else {
+            if (balance > 0) IERC20(_asset).transfer(_to, balance);
+        }
         IAlignmentVault(vault).rescueERC20(_asset, _to);
     }
 
     // Rescue non-aligned NFTs from contract, else send aligned NFTs to vault
     function rescueERC721(address _asset, address _to, uint256 _tokenId) external virtual onlyOwner {
         if (_asset == alignedNft && IERC721(_asset).ownerOf(_tokenId) == address(this)) {
-            IERC721(_asset).safeTransferFrom(address(this), address(vault), _tokenId);
+            IERC721(_asset).safeTransferFrom(address(this), vault, _tokenId);
             return;
         }
         if (IERC721(_asset).ownerOf(_tokenId) == address(this)) {
