@@ -60,6 +60,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     event ReferralFeePaid(address indexed referral, uint256 indexed amount);
     event ReferralFeeUpdate(uint16 indexed referralFee);
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
+    event ContractMetadataUpdate(string indexed uri);
     event RoyaltyUpdate(uint256 indexed tokenId, address indexed receiver, uint96 indexed royaltyFee);
     event RoyaltyDisabled();
 
@@ -279,12 +280,16 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Update baseURI for entire collection
     function setBaseURI(string memory baseURI_) external virtual onlyOwner {
-        if (!uriLocked) {
-            _baseURI = baseURI_;
-            emit BatchMetadataUpdate(0, maxSupply);
-        } else {
-            revert URILocked();
-        }
+        if (uriLocked) revert URILocked();
+        _baseURI = baseURI_;
+        emit BatchMetadataUpdate(0, maxSupply);
+    }
+
+    // Adjust contractURI if necessary
+    function setContractURI(string memory contractURI_) external virtual onlyOwner {
+        if (uriLocked) revert URILocked();
+        _contractURI = contractURI_;
+        emit ContractMetadataUpdate(contractURI_);
     }
 
     // Permanently lock collection URI
