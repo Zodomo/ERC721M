@@ -473,12 +473,12 @@ contract ERC721MTest is Test, ERC721Holder {
         require(!template.isUnlocked(1));
     }
 
-    function testLockId_TokenDoesNotExist() public {
+    function testLockIdRevertTokenDoesNotExist() public {
         vm.expectRevert(ERC721.TokenDoesNotExist.selector);
         template.lockId(1);
     }
 
-    function testLockId_NotApprovedLocker() public {
+    function testLockIdRevertNotApprovedLocker() public {
         address[] memory approved = new address[](1);
         approved[0] = address(42);
         bool[] memory status = new bool[](1);
@@ -491,7 +491,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.lockId(1);
     }
 
-    function testLockId_AlreadyLocked() public {
+    function testLockIdRevertAlreadyLocked() public {
         address[] memory approved = new address[](1);
         approved[0] = address(this);
         bool[] memory status = new bool[](1);
@@ -539,12 +539,12 @@ contract ERC721MTest is Test, ERC721Holder {
         require(!template.isUnlocked(1));
     }
 
-    function testUnlockId_TokenDoesNotExist() public {
+    function testUnlockIdRevertTokenDoesNotExist() public {
         vm.expectRevert(ERC721.TokenDoesNotExist.selector);
         template.unlockId(1);
     }
 
-    function testUnlockId_NotApprovedLocker() public {
+    function testUnlockIdRevertNotApprovedLocker() public {
         address[] memory approved = new address[](1);
         approved[0] = address(42);
         bool[] memory status = new bool[](1);
@@ -557,7 +557,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.unlockId(1);
     }
 
-    function testUnlockId_TokenNotLocked() public {
+    function testUnlockIdRevertTokenNotLocked() public {
         address[] memory approved = new address[](1);
         approved[0] = address(this);
         bool[] memory status = new bool[](1);
@@ -612,12 +612,12 @@ contract ERC721MTest is Test, ERC721Holder {
         require(!template.isUnlocked(1));
     }
 
-    function testFreeId_TokenDoesNotExist() public {
+    function testFreeIdRevertTokenDoesNotExist() public {
         vm.expectRevert(ERC721.TokenDoesNotExist.selector);
         template.freeId(1, address(this));
     }
 
-    function testFreeId_LockerStillApproved() public {
+    function testFreeIdRevertLockerStillApproved() public {
         address[] memory approved = new address[](1);
         approved[0] = address(this);
         bool[] memory status = new bool[](1);
@@ -631,14 +631,14 @@ contract ERC721MTest is Test, ERC721Holder {
         template.freeId(1, address(this));
     }
 
-    function testFreeId_TokenNotLocked() public {
+    function testFreeIdRevertTokenNotLocked() public {
         template.openMint();
         template.mint{value: 0.01 ether}(address(this), 1);
         vm.expectRevert(LockRegistry.TokenNotLocked.selector);
         template.freeId(1, address(this));
     }
 
-    function testUpdateApprovedContracts_ArrayLengthMismatch() public {
+    function testUpdateApprovedContractsRevertArrayLengthMismatch() public {
         address[] memory contracts = new address[](2);
         contracts[0] = address(1);
         contracts[1] = address(2);
