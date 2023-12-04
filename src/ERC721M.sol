@@ -381,8 +381,11 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         address owner = owner();
         // If contract is owned and caller isn't them, revert.
         if (owner != address(0) && owner != msg.sender) revert Unauthorized();
-        // If contract is renounced, convert _to to vault
-        if (owner == address(0)) _to = vault;
+        // If contract is renounced, convert _to to vault and withdraw all funds to it
+        if (owner == address(0)) {
+            _to = vault;
+            _amount = address(this).balance;
+        }
 
         // Confirm inputs are good
         if (_to == address(0)) revert Invalid();
