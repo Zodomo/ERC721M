@@ -14,6 +14,8 @@ import "../lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/interfaces/IERC721.sol";
 import "../lib/AlignmentVault/src/IAlignmentVault.sol";
 
+import "../lib/forge-std/src/console2.sol";
+
 // >>>>>>>>>>>> [ INTERFACES ] <<<<<<<<<<<<
 
 interface IAsset {
@@ -119,12 +121,10 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     ) external payable virtual initializer {
         // Confirm mint alignment allocation is within valid range
         if (_allocation < 500) revert NotAligned(); // Require allocation be >= 5%
-        if (_allocation > 10000) revert Invalid(); // Require allocation be <= 100%
+        if (_allocation > 10000 || _royalty > 10000) revert Invalid(); // Require allocation and royalty be <= 100%
         allocation = _allocation;
-        // Confirm royalty is <= 100%
-        if (_royalty > 10000) revert Invalid(); // Prevent bad royalty fee >100%
-        _setTokenRoyalty(0, _owner, uint96(_royalty));
-        _setDefaultRoyalty(_owner, uint96(_royalty));
+        _setTokenRoyalty(0, _owner, _royalty);
+        _setDefaultRoyalty(_owner, _royalty);
         // Initialize ownership
         _initializeOwner(_owner);
         // Set all values
@@ -184,6 +184,10 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         return ERC721x.supportsInterface(_interfaceId) || ERC2981.supportsInterface(_interfaceId);
     }
 
+    function getBlacklist() public view virtual returns (address[] memory) {
+        return blacklist;
+    }
+
     // >>>>>>>>>>>> [ INTERNAL FUNCTIONS ] <<<<<<<<<<<<
 
     // Simple ownership check to reduce code reuse
@@ -212,19 +216,23 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Solady ERC721 _mint override to implement mint funds alignment and blacklist
     function _mint(address _to, uint256 _amount, address _referral) internal {
+        console2.log(msg.value);
         // Prevent bad inputs
         if (_to == address(0) || _amount == 0) revert Invalid();
         // Ensure minter and recipient don't hold blacklisted assets
         _enforceBlacklist(msg.sender, _to);
         // Calculate allocation
         uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 10000);
+        console2.log(mintAlloc);
+
         // Send aligned amount to AlignmentVault (success is intentionally not read to save gas as it cannot fail)
         payable(vault).call{value: mintAlloc}("");
 
         // If _referral isn't address(0), process sending referral fee
         // Reentrancy is handled by applying ReentrancyGuard to referral mint function [mint(address, uint256, address)]
         if (_referral != address(0)) {
-            uint256 referralAlloc = FixedPointMathLib.fullMulDivUp(referralFee, msg.value, 10000);
+            uint256 referralAlloc = FixedPointMathLib.mulDivUp(referralFee, msg.value, 10000);
+            console2.log(referralAlloc);
             (bool success, ) = payable(_referral).call{value: referralAlloc}("");
             if (!success) revert TransferFailed();
             emit ReferralFeePaid(_referral, referralAlloc);
@@ -306,6 +314,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Set default royalty receiver and royalty fee
     function setRoyalties(address _recipient, uint96 _royaltyFee) external virtual onlyOwner {
+        if (_royaltyFee > 10000) revert Invalid();
         // Revert if royalties are disabled
         (address receiver,) = royaltyInfo(0, 0);
         if (receiver == address(0)) revert RoyaltiesDisabled();
@@ -322,6 +331,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         address _recipient,
         uint96 _royaltyFee
     ) external virtual onlyOwner {
+        if (_royaltyFee > 10000) revert Invalid();
         // Revert if royalties are disabled
         (address receiver,) = royaltyInfo(0, 0);
         if (receiver == address(0)) revert RoyaltiesDisabled();
@@ -364,10 +374,10 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Decrease token maxSupply
     // NOTE: There is and will be no function to increase supply. This operation is one-way only.
-    function decreaseSupply(uint40 _maxSupply) external virtual onlyOwner {
-        if (_maxSupply >= maxSupply) revert Invalid();
-        maxSupply = _maxSupply;
-        emit SupplyUpdate(_maxSupply);
+    function decreaseSupply(uint40 _newSupply) external virtual onlyOwner {
+        if (_newSupply >= maxSupply || _newSupply < totalSupply()) revert Invalid();
+        maxSupply = _newSupply;
+        emit SupplyUpdate(_newSupply);
     }
 
     // Restrict ability to update approved ERC721x-supporting contract status to owner
@@ -379,18 +389,17 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     function withdrawFunds(address _to, uint256 _amount) external virtual nonReentrant {
         // Cache owner address to save gas
         address owner = owner();
+        uint256 balance = address(this).balance;
+        if (_to == address(0)) revert Invalid();
         // If contract is owned and caller isn't them, revert.
         if (owner != address(0) && owner != msg.sender) revert Unauthorized();
         // If contract is renounced, convert _to to vault and withdraw all funds to it
         if (owner == address(0)) {
             _to = vault;
-            _amount = address(this).balance;
+            _amount = balance;
         }
-
-        // Confirm inputs are good
-        if (_to == address(0)) revert Invalid();
-        if (_amount > address(this).balance && _amount != type(uint256).max) revert Overdraft();
-        if (_amount == type(uint256).max) _amount = address(this).balance;
+        // Instead of reverting for overage, simply overwrite _amount with balance
+        if (_amount > balance) _amount = balance;
 
         // Process withdrawal
         (bool success,) = payable(_to).call{ value: _amount }("");

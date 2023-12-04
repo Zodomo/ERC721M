@@ -4,10 +4,8 @@ pragma solidity ^0.8.20;
 import "../lib/forge-std/src/Test.sol";
 import "../lib/liquidity-helper/UniswapV2LiquidityHelper.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "../lib/solady/test/utils/mocks/MockERC20.sol";
 import "../lib/solady/test/utils/mocks/MockERC721.sol";
-import "../lib/manual-tests/UnburnableERC20.sol";
-import "../lib/manual-tests/FakeSendERC20.sol";
-import "../lib/AlignmentVault/src/AlignmentVault.sol";
 import "../src/ERC721M.sol";
 import "../src/IERC721M.sol";
 
@@ -18,13 +16,10 @@ interface IFallback {
 contract ERC721MTest is Test, ERC721Holder {
     using LibString for uint256;
 
-    AlignmentVault public vaultImplementation = new AlignmentVault();
     ERC721M public template;
     ERC721M public manualInit;
     IERC721 public nft = IERC721(0x5Af0D9827E0c53E4799BB226655A1de152A425a5); // Milady NFT
     MockERC20 public testToken;
-    UnburnableERC20 public testUnburnableToken;
-    FakeSendERC20 public testFakeSendToken;
     MockERC721 public testNFT;
     IWETH weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 wethToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -50,10 +45,6 @@ contract ERC721MTest is Test, ERC721Holder {
         vm.deal(address(this), 1000 ether);
         testToken = new MockERC20("Test Token", "TEST", 18);
         testToken.mint(address(this), 100 ether);
-        testUnburnableToken = new UnburnableERC20("Unburnable Token", "UBTEST", 18);
-        testUnburnableToken.mint(address(this), 100 ether);
-        testFakeSendToken = new FakeSendERC20("Fake Send Token", "FSTEST", 18);
-        testFakeSendToken.mint(address(this), 100 ether);
         testNFT = new MockERC721();
         testNFT.safeMint(address(this), 1);
         testNFT.safeMint(address(this), 2);
