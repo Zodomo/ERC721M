@@ -366,6 +366,8 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     // Increase mint alignment allocation
     // NOTE: There is and will be no function to decrease this value. This operation is one-way only.
     function increaseAlignment(uint16 _allocation) external virtual onlyOwner {
+        // Prevent alignment deception (changing it last mint) by locking it in at 50% minted
+        if (totalSupply() > maxSupply / 2) revert Invalid();
         // Prevent reducing or oversetting alignment (keeping referralFee in mind)
         if (_allocation <= allocation || (_allocation + referralFee) > 10000) revert Invalid();
         allocation = _allocation;
