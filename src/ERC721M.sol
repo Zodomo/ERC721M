@@ -29,7 +29,7 @@ interface IFactory {
 
 /**
  * @title ERC721M
- * @author Zodomo.eth (Farcaster/Telegram: @zodomo, X: @0xZodomo, Email: zodomo@proton.me)
+ * @author Zodomo.eth (Farcaster/Telegram/Discord/Github: @zodomo, X: @0xZodomo, Email: zodomo@proton.me)
  * @notice A NFT template that can be configured to automatically send a portion of mint funds to an AlignmentVault
  * @custom:github https://github.com/Zodomo/ERC721M
  */
@@ -107,17 +107,17 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Initialize contract, should be called immediately after deployment, ideally by factory
     function initialize(
-        string memory name_,
-        string memory symbol_,
-        string memory baseURI_,
-        string memory contractURI_,
-        uint40 _maxSupply,
-        uint16 _royalty,
-        uint16 _allocation,
-        address _owner,
-        address _alignedNft,
-        uint80 _price,
-        uint256 _vaultId
+        string memory name_, // Collection name ("Milady")
+        string memory symbol_, // Collection symbol ("MIL")
+        string memory baseURI_, // ipfs://...
+        string memory contractURI_, // ipfs://...
+        uint40 _maxSupply, // Max supply (~1.099T max)
+        uint16 _royalty, // Percentage in basis points (420 == 4.20%)
+        uint16 _allocation, // Percentage of mint funds to AlignmentVault in basis points, minimum of 5% (777 == 7.77%)
+        address _owner, // Collection contract owner
+        address _alignedNft, // Address of NFT to configure AlignmentVault for, must have NFTX vault!
+        uint80 _price, // Price (~1.2M ETH max)
+        uint256 _vaultId // NFTX Vault ID, please check!
     ) external payable virtual initializer {
         // Confirm mint alignment allocation is within valid range
         if (_allocation < 500) revert NotAligned(); // Require allocation be >= 5%
