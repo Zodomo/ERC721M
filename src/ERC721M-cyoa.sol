@@ -379,7 +379,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         emit AlignmentUpdate(_allocation);
     }
 
-    function increaseMaxAllocation(uint16 _allocation) external virtual onlyOwner {
+    function increaseMaxAlignment(uint16 _allocation) external virtual onlyOwner {
         // Prevent reducing or oversetting alignment (keeping referralFee in mind)
         if (_allocation < minAllocation || (_allocation + referralFee) > 10000) revert Invalid();
         maxAllocation = _allocation;
