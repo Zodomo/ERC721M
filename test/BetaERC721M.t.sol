@@ -96,7 +96,7 @@ contract ERC721MTest is Test, ERC721Holder {
         assertEq(maxSupply, manualInit.maxSupply(), "maxSupply error");
         (, uint256 _royalty) = manualInit.royaltyInfo(0, 1 ether);
         assertEq(royalty, (_royalty * 10000) / 1 ether, "royalty error");
-        assertEq(allocation, manualInit.allocation(), "allocation error");
+        assertEq(allocation, manualInit.minAllocation(), "allocation error");
         assertEq(owner, manualInit.owner(), "owner error");
         assertEq(392, IAlignmentVault(manualInit.vault()).vaultId(), "vaultId error");
     }
@@ -149,13 +149,13 @@ contract ERC721MTest is Test, ERC721Holder {
 
         vm.prank(caller);
         if (amount == 0) {
-            template.mint{value: 0.01 ether}(recipient, 1);
+            template.mint{value: 0.01 ether}(recipient, 1, 2000);
             assertEq(template.balanceOf(recipient), 1, "balanceOf error");
             assertEq(template.totalSupply(), 1, "totalSupply error");
             assertEq(address(template).balance, 0.008 ether, "template balance error");
             assertEq(wethToken.balanceOf(template.vault()), 0.002 ether, "vault balance error");
         } else {
-            template.mint{value: 0.01 ether * amount}(recipient, amount);
+            template.mint{value: 0.01 ether * amount}(recipient, amount, 2000);
             assertEq(template.balanceOf(recipient), amount, "balanceOf error");
             assertEq(template.totalSupply(), amount, "totalSupply error");
             assertEq(address(template).balance, 0.008 ether * amount, "template balance error");
@@ -186,7 +186,7 @@ contract ERC721MTest is Test, ERC721Holder {
         
         uint256 refFee = FixedPointMathLib.mulDivUp(referralFee * amount, 0.01 ether, 10000);
         vm.prank(caller);
-        template.mint{value: 0.01 ether * amount}(recipient, amount, referrer);
+        template.mint{value: 0.01 ether * amount}(recipient, amount, referrer, 2000);
         assertEq(template.balanceOf(recipient), amount, "balanceOf error");
         assertEq(template.totalSupply(), amount, "totalSupply error");
         assertEq(address(referrer).balance, refFee, "referrer balance error");
@@ -300,15 +300,21 @@ contract ERC721MTest is Test, ERC721Holder {
         assertEq(template.mintOpen(), true, "mintOpen error");
     }
 
-    function testIncreaseAlignment(uint16 allocation, uint16 invalidAllocation) public {
-        allocation = uint16(bound(allocation, 2001, 10000));
-        invalidAllocation = uint16(bound(invalidAllocation, 10001, type(uint16).max));
+    function testIncreaseAlignment(uint16 minAllocation,  uint16 maxAllocation, uint16 invalidMinAllocation, uint16 invalidMaxAllocation) public {
+        minAllocation = uint16(bound(minAllocation, 2001, 10000));
+        maxAllocation = uint16(bound(maxAllocation, minAllocation, 10000));
+        invalidMinAllocation = uint16(bound(invalidMinAllocation, 10001, type(uint16).max));
+        invalidMaxAllocation = uint16(bound(invalidMaxAllocation, 10001, type(uint16).max));
 
-        template.increaseAlignment(allocation);
-        assertEq(template.allocation(), allocation, "allocation error");
+        template.increaseAlignment(minAllocation, maxAllocation);
+        assertEq(template.minAllocation(), minAllocation, "allocation error");
+        assertEq(template.maxAllocation(), maxAllocation, "allocation error");
 
         vm.expectRevert(IERC721M.Invalid.selector);
-        template.increaseAlignment(invalidAllocation);
+        template.increaseAlignment(invalidMinAllocation, maxAllocation);
+
+        vm.expectRevert(IERC721M.Invalid.selector);
+        template.increaseAlignment(minAllocation, invalidMaxAllocation);
     }
 
     function testDecreaseSupply(uint256 amount, uint40 newSupply, uint40 invalidSupply) public {
@@ -351,7 +357,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.openMint();
 
         vm.prank(caller);
-        template.mint{value: 0.01 ether * amount}(recipient, amount);
+        template.mint{value: 0.01 ether * amount}(recipient, amount, 2000);
 
         vm.expectRevert(IERC721M.Invalid.selector);
         template.withdrawFunds(address(0), type(uint256).max);
