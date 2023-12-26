@@ -495,7 +495,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Internal handling for receive() and fallback() to reduce code length
     function _processPayment() internal {
-        if (mintOpen) mint(msg.sender, (msg.value / price), minAllocation);
+        if (mintOpen) mint(msg.sender, (msg.value / price));
         else {
             // Calculate allocation and split paymeent accordingly
             uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(minAllocation, msg.value, 10000);
