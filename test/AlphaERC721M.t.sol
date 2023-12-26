@@ -67,7 +67,7 @@ contract ERC721MTest is Test, ERC721Holder {
             392
         );
         manualInit.disableInitializers();
-        require(manualInit.allocation() == 2000);
+        require(manualInit.minAllocation() == 2000);
         (address recipient, uint256 royalty) = manualInit.royaltyInfo(0, 1 ether);
         require(recipient == address(this));
         require(royalty == 0.05 ether);
@@ -157,7 +157,7 @@ contract ERC721MTest is Test, ERC721Holder {
 
     function testTokenURI() public {
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         require(
             keccak256(abi.encodePacked(template.tokenURI(1)))
                 == keccak256(
@@ -211,31 +211,31 @@ contract ERC721MTest is Test, ERC721Holder {
         vm.assume(_amount <= 100);
         vm.assume(_to != address(0));
         template.openMint();
-        template.mint{value: 0.01 ether * _amount}(_to, _amount);
+        template.mint{value: 0.01 ether * _amount}(_to, _amount, 2000);
     }
 
     function testMintRevertInsufficientPayment() public {
         template.openMint();
         vm.expectRevert(ERC721M.InsufficientPayment.selector);
-        template.mint{value: 0.001 ether}(address(this), 1);
+        template.mint{value: 0.001 ether}(address(this), 1, 2000);
     }
 
     function testMintRevertMintClosed() public {
         vm.expectRevert(ERC721M.MintClosed.selector);
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
     }
 
     function testMintRevertMintCapReached() public {
         template.openMint();
-        template.mint{value: 0.01 ether * 100}(address(this), 100);
+        template.mint{value: 0.01 ether * 100}(address(this), 100, 2000);
         vm.expectRevert(ERC721M.MintCap.selector);
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
     }
 
     function testMintRevertMintCapExceeded() public {
         template.openMint();
         vm.expectRevert(ERC721M.MintCap.selector);
-        template.mint{value: 0.01 ether * 101}(address(this), 101);
+        template.mint{value: 0.01 ether * 101}(address(this), 101, 2000);
     }
 
     function testFixInventory() public {
@@ -357,7 +357,7 @@ contract ERC721MTest is Test, ERC721Holder {
 
     function testWithdrawFunds() public {
         template.openMint();
-        template.mint{value: 0.01 ether}(address(42), 1);
+        template.mint{value: 0.01 ether}(address(42), 1, 2000);
         uint256 dust = address(42).balance;
         template.withdrawFunds(address(42), 0.002 ether);
         require((address(42).balance - dust) == 0.002 ether);
@@ -365,7 +365,7 @@ contract ERC721MTest is Test, ERC721Holder {
 
     function testWithdrawFundsRenounced() public {
         template.openMint();
-        template.mint{value: 0.01 ether}(address(42), 1);
+        template.mint{value: 0.01 ether}(address(42), 1, 2000);
         template.renounceOwnership();
         template.withdrawFunds(address(69), 0.0000001 ether);
         require(wethToken.balanceOf(template.vault()) == 0.01 ether);
@@ -373,7 +373,7 @@ contract ERC721MTest is Test, ERC721Holder {
 
     function testWithdrawFundsRevertUnauthorized() public {
         template.openMint();
-        template.mint{value: 0.01 ether}(address(42), 1);
+        template.mint{value: 0.01 ether}(address(42), 1, 2000);
         vm.prank(address(42));
         vm.expectRevert(Ownable.Unauthorized.selector);
         template.withdrawFunds(address(42), 0.002 ether);
@@ -411,7 +411,7 @@ contract ERC721MTest is Test, ERC721Holder {
 
     function testTransferFromUnlocked() public {
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.transferFrom(address(this), address(42), 1);
         require(template.ownerOf(1) == address(42));
     }
@@ -424,7 +424,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
         vm.expectRevert(IERC721x.TokenLock.selector);
         template.transferFrom(address(this), address(42), 1);
@@ -432,7 +432,7 @@ contract ERC721MTest is Test, ERC721Holder {
 
     function testSafeTransferFromUnlocked() public {
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.safeTransferFrom(address(this), address(42), 1, bytes("milady"));
         require(template.ownerOf(1) == address(42));
     }
@@ -445,7 +445,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
         vm.expectRevert(IERC721x.TokenLock.selector);
         template.safeTransferFrom(address(this), address(42), 1, bytes("milady"));
@@ -459,7 +459,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
         require(!template.isUnlocked(1));
     }
@@ -477,7 +477,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         vm.expectRevert(LockRegistry.NotApprovedLocker.selector);
         template.lockId(1);
     }
@@ -490,7 +490,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
         vm.expectRevert(LockRegistry.AlreadyLocked.selector);
         template.lockId(1);
@@ -504,7 +504,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
         template.unlockId(1);
         require(template.isUnlocked(1));
@@ -520,7 +520,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
 
         vm.prank(address(333));
@@ -543,7 +543,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         vm.expectRevert(LockRegistry.NotApprovedLocker.selector);
         template.unlockId(1);
     }
@@ -556,7 +556,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         vm.expectRevert(LockRegistry.TokenNotLocked.selector);
         template.unlockId(1);
     }
@@ -569,7 +569,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
         status[0] = false;
         template.updateApprovedContracts(approved, status);
@@ -587,7 +587,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
 
         vm.prank(address(333));
@@ -616,7 +616,7 @@ contract ERC721MTest is Test, ERC721Holder {
         template.updateApprovedContracts(approved, status);
 
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         template.lockId(1);
         vm.expectRevert(LockRegistry.LockerStillApproved.selector);
         template.freeId(1, address(this));
@@ -624,7 +624,7 @@ contract ERC721MTest is Test, ERC721Holder {
 
     function testFreeIdRevertTokenNotLocked() public {
         template.openMint();
-        template.mint{value: 0.01 ether}(address(this), 1);
+        template.mint{value: 0.01 ether}(address(this), 1, 2000);
         vm.expectRevert(LockRegistry.TokenNotLocked.selector);
         template.freeId(1, address(this));
     }

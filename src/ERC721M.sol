@@ -57,7 +57,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     event Withdraw(address indexed to, uint256 indexed amount);
     event PriceUpdate(uint80 indexed price);
     event SupplyUpdate(uint40 indexed supply);
-    event AlignmentUpdate(uint16 indexed allocation);
+    event AlignmentUpdate(uint16 indexed minAllocation, uint16 indexed maxAllocation);
     event BlacklistUpdate(address[] indexed blacklist);
     event ReferralFeePaid(address indexed referral, uint256 indexed amount);
     event ReferralFeeUpdate(uint16 indexed referralFee);
@@ -83,7 +83,8 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     // >>>>>>>>>>>> [ PUBLIC VARIABLES ] <<<<<<<<<<<<
 
     uint40 public maxSupply;
-    uint16 public allocation;
+    uint16 public minAllocation;
+    uint16 public maxAllocation;
     address public alignedNft;
     address public vault;
     uint80 public price;
@@ -113,7 +114,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         string memory contractURI_, // ipfs://...
         uint40 _maxSupply, // Max supply (~1.099T max)
         uint16 _royalty, // Percentage in basis points (420 == 4.20%)
-        uint16 _allocation, // Percentage of mint funds to AlignmentVault in basis points, minimum of 5% (777 == 7.77%)
+        uint16 _allocation, // Minimum Percentage of mint funds to AlignmentVault in basis points, minimum of 5% (777 == 7.77%)
         address _owner, // Collection contract owner
         address _alignedNft, // Address of NFT to configure AlignmentVault for, must have NFTX vault!
         uint80 _price, // Price (~1.2M ETH max)
@@ -122,7 +123,8 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         // Confirm mint alignment allocation is within valid range
         if (_allocation < 500) revert NotAligned(); // Require allocation be >= 5%
         if (_allocation > 10000 || _royalty > 10000) revert Invalid(); // Require allocation and royalty be <= 100%
-        allocation = _allocation;
+        minAllocation = _allocation;
+        maxAllocation = _allocation;
         _setTokenRoyalty(0, _owner, _royalty);
         _setDefaultRoyalty(_owner, _royalty);
         // Initialize ownership
@@ -215,14 +217,17 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     // >>>>>>>>>>>> [ MINT LOGIC ] <<<<<<<<<<<<
 
     // Solady ERC721 _mint override to implement mint funds alignment and blacklist
-    function _mint(address _to, uint256 _amount, address _referral) internal {
+    function _mint(address _to, uint256 _amount, address _referral, uint16 _allocation
+    ) internal {
         console2.log(msg.value);
         // Prevent bad inputs
         if (_to == address(0) || _amount == 0) revert Invalid();
         // Ensure minter and recipient don't hold blacklisted assets
         _enforceBlacklist(msg.sender, _to);
+        // Ensure allocation set by the user is in the range between minAllocation and maxAllocation
+        if(_allocation < minAllocation || _allocation > maxAllocation) revert Invalid();
         // Calculate allocation
-        uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 10000);
+        uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(_allocation, msg.value, 10000);
         console2.log(mintAlloc);
 
         // Send aligned amount to AlignmentVault (success is intentionally not read to save gas as it cannot fail)
@@ -252,36 +257,49 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         }
     }
 
+    // Standard mint function that supports batch minting and custom allocation
+    function mint(address _to, uint256 _amount, uint16 _allocation) public payable virtual mintable(_amount) {
+        if (msg.value < (price * _amount)) revert InsufficientPayment();
+        _mint(_to, _amount, address(0), _allocation);
+    }
+
+    // Standard batch mint with custom allocation support and referral fee support
+    function mint(address _to, uint256 _amount, address _referral, uint16 _allocation) public payable virtual mintable(_amount) nonReentrant {
+        if (_referral == msg.sender) revert Invalid();
+        if (msg.value < (price * _amount)) revert InsufficientPayment();
+        _mint(_to, _amount, _referral, _allocation);
+    }
+
     // Standard mint function that supports batch minting
     function mint(address _to, uint256 _amount) public payable virtual mintable(_amount) {
         if (msg.value < (price * _amount)) revert InsufficientPayment();
-        _mint(_to, _amount, address(0));
+        _mint(_to, _amount, address(0), minAllocation);
     }
 
     // Standard batch mint with referral fee support
     function mint(address _to, uint256 _amount, address _referral) public payable virtual mintable(_amount) nonReentrant {
         if (_referral == msg.sender) revert Invalid();
         if (msg.value < (price * _amount)) revert InsufficientPayment();
-        _mint(_to, _amount, _referral);
+        _mint(_to, _amount, _referral, minAllocation);
     }
 
     // Standard single-unit mint to msg.sender (implemented for max scannner compatibility)
     function mint() public payable virtual mintable(1) {
         if (msg.value < price) revert InsufficientPayment();
-        _mint(msg.sender, 1, address(0));
+        _mint(msg.sender, 1, address(0), minAllocation);
     }
 
     // Standaard multi-unit mint to msg.sender (implemented for max scanner compatibility)
     function mint(uint256 _amount) public payable virtual mintable(_amount) {
         if (msg.value < (price * _amount)) revert InsufficientPayment();
-        _mint(msg.sender, _amount, address(0));
+        _mint(msg.sender, _amount, address(0), minAllocation);
     }
 
     // >>>>>>>>>>>> [ PERMISSIONED / OWNER FUNCTIONS ] <<<<<<<<<<<<
 
     // Set referral fee, must be < (10000 - allocation)
     function setReferralFee(uint16 _referralFee) external virtual onlyOwner {
-        if (_referralFee > (10000 - allocation)) revert Invalid();
+        if (_referralFee > (10000 - maxAllocation)) revert Invalid();
         referralFee = _referralFee;
         emit ReferralFeeUpdate(_referralFee);
     }
@@ -365,13 +383,19 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Increase mint alignment allocation
     // NOTE: There is and will be no function to decrease this value. This operation is one-way only.
-    function increaseAlignment(uint16 _allocation) external virtual onlyOwner {
+    function increaseAlignment(uint16 _minAllocation, uint16 _maxAllocation) external virtual onlyOwner {
+        uint256 min = minAllocation;
+        // Prevent oversetting alignment (keeping maxAllocation in mind)
+        if (_maxAllocation + referralFee > 10000) revert Invalid();
         // Prevent alignment deception (changing it last mint) by locking it in at 50% minted
-        if (totalSupply() > maxSupply / 2) revert Invalid();
-        // Prevent reducing or oversetting alignment (keeping referralFee in mind)
-        if (_allocation <= allocation || (_allocation + referralFee) > 10000) revert Invalid();
-        allocation = _allocation;
-        emit AlignmentUpdate(_allocation);
+        if (totalSupply() > maxSupply / 2) {
+            if (_maxAllocation < min) revert Invalid();
+        } else {
+            if (_minAllocation < min || _minAllocation > _maxAllocation) revert Invalid();
+            minAllocation = _minAllocation;
+        }
+        maxAllocation = _maxAllocation;
+        emit AlignmentUpdate(minAllocation, _maxAllocation);
     }
 
     // Decrease token maxSupply
@@ -474,7 +498,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         if (mintOpen) mint(msg.sender, (msg.value / price));
         else {
             // Calculate allocation and split paymeent accordingly
-            uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(allocation, msg.value, 10000);
+            uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(minAllocation, msg.value, 10000);
             // Success when transferring to vault isn't checked because transfers to vault cant fail
             payable(vault).call{ value: mintAlloc }("");
             // Reentrancy risk is ignored here because if owner wants to withdraw that way that's their prerogative

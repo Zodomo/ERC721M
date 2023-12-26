@@ -29,7 +29,7 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     event Withdraw(address indexed to, uint256 indexed amount);
     event PriceUpdate(uint80 indexed price);
     event SupplyUpdate(uint40 indexed supply);
-    event AlignmentUpdate(uint16 indexed allocation);
+    event AlignmentUpdate(uint16 indexed minAllocation, uint16 indexed maxAllocation);
     event BlacklistUpdate(address[] indexed blacklist);
     event ReferralFeePaid(address indexed referral, uint256 indexed amount);
     event ReferralFeeUpdate(uint16 indexed referralFee);
@@ -50,7 +50,8 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     function uriLocked() external view returns (bool);
     function mintOpen() external view returns (bool);
     function alignedNft() external view returns (address);
-    function allocation() external view returns (uint16);
+    function minAllocation() external view returns (uint16);
+    function maxAllocation() external view returns (uint16);
     function blacklist(uint256 _index) external view returns (address);
 
     function setReferralFee(uint16 _referralFee) external;
@@ -62,7 +63,7 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
     function disableRoyalties() external;
     function setBlacklist(address[] memory _blacklist) external;
     function openMint() external;
-    function increaseAlignment(uint16 _allocation) external;
+    function increaseAlignment(uint16 _minAllocation, uint16 _maxAllocation) external;
     function decreaseSupply(uint40 _maxSupply) external;
     function updateApprovedContracts(address[] calldata _contracts, bool[] calldata _values) external;
 
@@ -71,6 +72,8 @@ interface IERC721M is IERC721, IERC721x, IERC2981 {
 
     function mint(address _to, uint256 _amount) external payable;
     function mint(address _to, uint256 _amount, address _referral) external payable;
+    function mint(address _to, uint256 _amount, uint16 _allocation) external payable;
+    function mint(address _to, uint256 _amount, address _referral, uint16 _allocation) external payable;
 
     function fixInventory(uint256[] memory _tokenIds) external payable;
     function checkInventory(uint256[] memory _tokenIds) external payable;
