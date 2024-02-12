@@ -85,9 +85,15 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // >>>>>>>>>>>> [ PUBLIC VARIABLES ] <<<<<<<<<<<<
 
-    mapping(address asset => bytes32 root) public root;
+    struct FreeMint {
+        bytes32 root;
+        uint40 issued;
+        uint40 claimable;
+        uint40 supply;
+    }
+
+    mapping(address asset => FreeMint) public freeMintData;
     mapping(address user => mapping(address asset => uint256 claimed)) public claimed;
-    mapping(address asset => uint256 available) public claimable;
     uint40 public maxSupply;
     uint16 public minAllocation;
     uint16 public maxAllocation;
@@ -303,15 +309,17 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     }
     
     // Merkle proof-driven free mint based on asset address
-    function freeMint(bytes32[] calldata _proof, address _asset, address _to, uint256 _amount, address _referral) public payable virtual mintable(_amount) nonReentrant {
-        uint256 claimableVal = claimable[_asset];
-        if (claimed[msg.sender][_asset] + _amount > claimableVal) revert NothingToClaim();
+    function freeMint(bytes32[] calldata _proof, address _asset, address _to, uint40 _amount, address _referral) public payable virtual mintable(_amount) nonReentrant {
+        FreeMint storage mintData = freeMintData[_asset];
+        if (_amount > mintData.supply) revert NothingToClaim();
+        if (claimed[msg.sender][_asset] + _amount > mintData.claimable) revert NothingToClaim();
 
-        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, claimableVal));
-        if (!MerkleProofLib.verifyCalldata(_proof, root[_asset], leaf)) revert NothingToClaim();
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, mintData.claimable));
+        if (!MerkleProofLib.verifyCalldata(_proof, mintData.root, leaf)) revert NothingToClaim();
 
         unchecked {
             claimed[msg.sender][_asset] += _amount;
+            mintData.supply -= _amount;
         }
         _mint(_to, _amount, _referral, minAllocation);
     }
@@ -383,9 +391,15 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         emit RoyaltyUpdate(_tokenId, _recipient, _royaltyFee);
     }
 
-    function setFreeMintMerkleRoot(bytes32 _root, address _asset, uint40 _amount) external virtual onlyOwner {
-        root[_asset] = _root;
-        claimable[_asset] = _amount;
+    function setFreeMintMerkleRoot(bytes32 _root, address _asset, uint40 _amount, uint40 _claimable) external virtual onlyOwner {
+        FreeMint memory oldMintData = freeMintData[_asset];
+        if (oldMintData.issued > _amount && oldMintData.supply < oldMintData.issued - _amount) revert Invalid();
+        uint40 supply;
+        unchecked {
+            if (oldMintData.issued > _amount) supply -= oldMintData.issued - _amount;
+            else supply = _amount;
+        }
+        freeMintData[_asset] = FreeMint({ root: _root, issued: _amount, claimable: _claimable, supply: supply });
         emit FreeMintMerkleRoot(_root, _asset, _amount);
     }
 
