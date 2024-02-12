@@ -10,6 +10,7 @@ import "../lib/openzeppelin-contracts/contracts/proxy/utils/Initializable.sol";
 import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "../lib/solady/src/utils/LibString.sol";
 import "../lib/solady/src/utils/FixedPointMathLib.sol";
+import "../lib/solady/src/utils/MerkleProofLib.sol";
 import "../lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/interfaces/IERC721.sol";
 import "../lib/AlignmentVault/src/IAlignmentVault.sol";
@@ -47,6 +48,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     error MintClosed();
     error Blacklisted();
     error TransferFailed();
+    error NothingToClaim();
     error RoyaltiesDisabled();
     error InsufficientPayment();
 
@@ -65,6 +67,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     event ContractMetadataUpdate(string indexed uri);
     event RoyaltyUpdate(uint256 indexed tokenId, address indexed receiver, uint96 indexed royaltyFee);
     event RoyaltyDisabled();
+    event FreeMintMerkleRoot(bytes32 indexed merkleRoot, address indexed asset, uint40 indexed amount);
 
     // >>>>>>>>>>>> [ CONSTANTS ] <<<<<<<<<<<<
 
@@ -82,6 +85,9 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // >>>>>>>>>>>> [ PUBLIC VARIABLES ] <<<<<<<<<<<<
 
+    mapping(address asset => bytes32 root) public root;
+    mapping(address user => mapping(address asset => uint256 claimed)) public claimed;
+    mapping(address asset => uint256 available) public claimable;
     uint40 public maxSupply;
     uint16 public minAllocation;
     uint16 public maxAllocation;
@@ -230,17 +236,18 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         uint256 mintAlloc = FixedPointMathLib.fullMulDivUp(_allocation, msg.value, 10000);
         console2.log(mintAlloc);
 
-        // Send aligned amount to AlignmentVault (success is intentionally not read to save gas as it cannot fail)
-        payable(vault).call{value: mintAlloc}("");
-
-        // If _referral isn't address(0), process sending referral fee
-        // Reentrancy is handled by applying ReentrancyGuard to referral mint function [mint(address, uint256, address)]
-        if (_referral != address(0)) {
-            uint256 referralAlloc = FixedPointMathLib.mulDivUp(referralFee, msg.value, 10000);
-            console2.log(referralAlloc);
-            (bool success, ) = payable(_referral).call{value: referralAlloc}("");
-            if (!success) revert TransferFailed();
-            emit ReferralFeePaid(_referral, referralAlloc);
+        if (msg.value > 0) {
+            // Send aligned amount to AlignmentVault (success is intentionally not read to save gas as it cannot fail)
+            payable(vault).call{value: mintAlloc}("");
+            // If _referral isn't address(0), process sending referral fee
+            // Reentrancy is handled by applying ReentrancyGuard to referral mint function [mint(address, uint256, address)]
+            if (_referral != address(0)) {
+                uint256 referralAlloc = FixedPointMathLib.mulDivUp(referralFee, msg.value, 10000);
+                console2.log(referralAlloc);
+                (bool success, ) = payable(_referral).call{value: referralAlloc}("");
+                if (!success) revert TransferFailed();
+                emit ReferralFeePaid(_referral, referralAlloc);
+            }
         }
 
         // Process ERC721 mints
@@ -289,10 +296,24 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         _mint(msg.sender, 1, address(0), minAllocation);
     }
 
-    // Standaard multi-unit mint to msg.sender (implemented for max scanner compatibility)
+    // Standard multi-unit mint to msg.sender (implemented for max scanner compatibility)
     function mint(uint256 _amount) public payable virtual mintable(_amount) {
         if (msg.value < (price * _amount)) revert InsufficientPayment();
         _mint(msg.sender, _amount, address(0), minAllocation);
+    }
+    
+    // Merkle proof-driven free mint based on asset address
+    function freeMint(bytes32[] calldata _proof, address _asset, address _to, uint256 _amount, address _referral) public payable virtual mintable(_amount) nonReentrant {
+        uint256 claimableVal = claimable[_asset];
+        if (claimed[msg.sender][_asset] + _amount > claimableVal) revert NothingToClaim();
+
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, claimableVal));
+        if (!MerkleProofLib.verifyCalldata(_proof, root[_asset], leaf)) revert NothingToClaim();
+
+        unchecked {
+            claimed[msg.sender][_asset] += _amount;
+        }
+        _mint(_to, _amount, _referral, minAllocation);
     }
 
     // >>>>>>>>>>>> [ PERMISSIONED / OWNER FUNCTIONS ] <<<<<<<<<<<<
@@ -360,6 +381,12 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         if (_royaltyFee == 0) _resetTokenRoyalty(_tokenId);
         else _setTokenRoyalty(_tokenId, _recipient, _royaltyFee);
         emit RoyaltyUpdate(_tokenId, _recipient, _royaltyFee);
+    }
+
+    function setFreeMintMerkleRoot(bytes32 _root, address _asset, uint40 _amount) external virtual onlyOwner {
+        root[_asset] = _root;
+        claimable[_asset] = _amount;
+        emit FreeMintMerkleRoot(_root, _asset, _amount);
     }
 
     // Irreversibly disable royalties by resetting tokenId 0 royalty to (address(0), 0) and deleting default royalty info
