@@ -72,6 +72,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     event RoyaltyDisabled();
     event CustomMintDeleted(uint8 indexed listId);
     event CustomMintDisabled(uint8 indexed listId);
+    event CustomMintRepriced(uint8 indexed listId, uint80 indexed price);
     event CustomMintReenabled(uint8 indexed listId, uint40 indexed claimable);
     event CustomMintConfigured(bytes32 indexed merkleRoot, uint8 indexed listId, uint40 indexed amount);
 
@@ -96,6 +97,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         uint40 issued;
         uint40 claimable;
         uint40 supply;
+        uint80 price;
     }
 
     EnumerableSet.UintSet internal customMintLists;
@@ -207,6 +209,10 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     function getBlacklist() public view virtual returns (address[] memory) {
         return blacklist;
+    }
+
+    function getCustomMintListIds() external view virtual returns (uint256[] memory) {
+        return customMintLists.values();
     }
 
     // >>>>>>>>>>>> [ INTERNAL FUNCTIONS ] <<<<<<<<<<<<
@@ -321,6 +327,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         CustomMint storage mintData = customMintData[_listId];
         if (_amount > mintData.supply) revert MintCap();
         if (customClaims[msg.sender][_listId] + _amount > mintData.claimable) revert ExcessiveClaim();
+        if (msg.value < _amount * mintData.price) revert InsufficientPayment();
 
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
         if (!MerkleProofLib.verifyCalldata(_proof, mintData.root, leaf)) revert NothingToClaim();
@@ -401,7 +408,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // Set arbitrary custom mint lists using merkle trees, can be reconfigured
     // NOTE: Cannot retroactively reduce mintable amount below minted supply for custom mint list
-    function setCustomMint(bytes32 _root, uint8 _listId, uint40 _amount, uint40 _claimable) external virtual onlyOwner {
+    function setCustomMint(bytes32 _root, uint8 _listId, uint40 _amount, uint40 _claimable, uint80 _price) external virtual onlyOwner {
         if (!customMintLists.contains(_listId)) customMintLists.add(_listId);
         CustomMint memory mintData = customMintData[_listId];
         // Validate adjustment doesn't decrease amount below custom minted count
@@ -417,37 +424,47 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
                     mintData.supply - (mintData.issued - _amount);
             }
         }
-        customMintData[_listId] = CustomMint({ root: _root, issued: _amount, claimable: _claimable, supply: supply });
+        customMintData[_listId] = CustomMint({ root: _root, issued: _amount, claimable: _claimable, supply: supply, price: _price });
         emit CustomMintConfigured(_root, _listId, _amount);
     }
 
     // Reduces claimable supply for custom list to 0
     function disableCustomMint(uint8 _listId) external virtual onlyOwner {
+        if (!customMintLists.contains(_listId)) revert Invalid();
         customMintData[_listId].claimable = 0;
         emit CustomMintDisabled(_listId);
     }
 
     // Reenables custom mint by setting claimable amount
     function reenableCustomMint(uint8 _listId, uint40 _claimable) external virtual onlyOwner {
+        if (!customMintLists.contains(_listId)) revert Invalid();
         uint40 issued = customMintData[_listId].issued;
         uint40 claimable = _claimable <= issued ? _claimable : issued;
         customMintData[_listId].claimable = claimable;
         emit CustomMintReenabled(_listId, claimable);
     }
 
+    // Reprice custom mint
+    function repriceCustomMint(uint8 _listId, uint80 _price) external virtual onlyOwner {
+        if (!customMintLists.contains(_listId)) revert Invalid();
+        customMintData[_listId].price = _price;
+        emit CustomMintRepriced(_listId, _price);
+    }
+
     // Completely nukes a custom mint list to minimal state
     function nukeCustomMint(uint8 _listId) external virtual onlyOwner {
         CustomMint memory mintData = customMintData[_listId];
         if (mintData.issued == mintData.supply) {
-            delete customMintData[_listId];
             if (customMintLists.contains(_listId)) customMintLists.remove(_listId);
+            delete customMintData[_listId];
             emit CustomMintDeleted(_listId);
         } else {
             customMintData[_listId] = CustomMint({ 
                 root: bytes32(""), 
                 issued: mintData.issued - mintData.supply, 
                 claimable: 0, 
-                supply: 0 
+                supply: 0,
+                price: 0
             });
             emit CustomMintConfigured(bytes32(""), _listId, 0);
         }
