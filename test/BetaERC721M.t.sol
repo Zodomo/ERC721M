@@ -101,7 +101,7 @@ contract ERC721MTest is Test, ERC721Holder {
         assertEq(392, IAlignmentVault(manualInit.vault()).vaultId(), "vaultId error");
     }
 
-    function testSupportsInterface(bytes4 interfaceId) public {
+    function testSupportsInterface(bytes4 interfaceId) public view {
         if (
             interfaceId == type(IERC2981).interfaceId || // ERC2981
             interfaceId == 0x706e8489 || // ERC721x

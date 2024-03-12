@@ -1,6 +1,3 @@
-[submodule "lib/forge-std"]
-	path = lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/vectorized/solady
@@ -23,3 +20,6 @@
 [submodule "lib/AlignmentVault"]
 	path = lib/AlignmentVault
 	url = https://github.com/Zodomo/AlignmentVault
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std

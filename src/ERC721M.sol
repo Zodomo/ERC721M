@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.23;
 
 // >>>>>>>>>>>> [ IMPORTS ] <<<<<<<<<<<<
 
@@ -8,6 +8,7 @@ import "./ERC721x.sol";
 import "../lib/openzeppelin-contracts/contracts/token/common/ERC2981.sol";
 import "../lib/openzeppelin-contracts/contracts/proxy/utils/Initializable.sol";
 import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import "../lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
 import "../lib/solady/src/utils/LibString.sol";
 import "../lib/solady/src/utils/FixedPointMathLib.sol";
 import "../lib/solady/src/utils/MerkleProofLib.sol";
@@ -36,6 +37,7 @@ interface IFactory {
  */
 contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     using LibString for uint256; // Used to convert uint256 tokenId to string for tokenURI()
+    using EnumerableSet for EnumerableSet.UintSet;
 
     // >>>>>>>>>>>> [ ERRORS ] <<<<<<<<<<<<
 
@@ -49,6 +51,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     error Blacklisted();
     error TransferFailed();
     error NothingToClaim();
+    error ExcessiveClaim();
     error RoyaltiesDisabled();
     error InsufficientPayment();
 
@@ -67,7 +70,10 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
     event ContractMetadataUpdate(string indexed uri);
     event RoyaltyUpdate(uint256 indexed tokenId, address indexed receiver, uint96 indexed royaltyFee);
     event RoyaltyDisabled();
-    event FreeMintMerkleRoot(bytes32 indexed merkleRoot, address indexed asset, uint40 indexed amount);
+    event CustomMintDeleted(uint8 indexed listId);
+    event CustomMintDisabled(uint8 indexed listId);
+    event CustomMintReenabled(uint8 indexed listId, uint40 indexed claimable);
+    event CustomMintConfigured(bytes32 indexed merkleRoot, uint8 indexed listId, uint40 indexed amount);
 
     // >>>>>>>>>>>> [ CONSTANTS ] <<<<<<<<<<<<
 
@@ -85,15 +91,16 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
 
     // >>>>>>>>>>>> [ PUBLIC VARIABLES ] <<<<<<<<<<<<
 
-    struct FreeMint {
+    struct CustomMint {
         bytes32 root;
         uint40 issued;
         uint40 claimable;
         uint40 supply;
     }
 
-    mapping(address asset => FreeMint) public freeMintData;
-    mapping(address user => mapping(address asset => uint256 claimed)) public claimed;
+    EnumerableSet.UintSet internal customMintLists;
+    mapping(uint8 listId => CustomMint) public customMintData;
+    mapping(address user => mapping(uint8 listId => uint256 claimed)) public customClaims;
     uint40 public maxSupply;
     uint16 public minAllocation;
     uint16 public maxAllocation;
@@ -308,17 +315,18 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         _mint(msg.sender, _amount, address(0), minAllocation);
     }
     
-    // Merkle proof-driven free mint based on asset address
-    function freeMint(bytes32[] calldata _proof, address _asset, address _to, uint40 _amount, address _referral) public payable virtual mintable(_amount) nonReentrant {
-        FreeMint storage mintData = freeMintData[_asset];
-        if (_amount > mintData.supply) revert NothingToClaim();
-        if (claimed[msg.sender][_asset] + _amount > mintData.claimable) revert NothingToClaim();
+    // Whitelisted mint using merkle proofs
+    function customMint(bytes32[] calldata _proof, uint8 _listId, address _to, uint40 _amount, address _referral) public payable virtual mintable(_amount) nonReentrant {
+        if (!customMintLists.contains(_listId)) revert Invalid();
+        CustomMint storage mintData = customMintData[_listId];
+        if (_amount > mintData.supply) revert MintCap();
+        if (customClaims[msg.sender][_listId] + _amount > mintData.claimable) revert ExcessiveClaim();
 
-        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, mintData.claimable));
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
         if (!MerkleProofLib.verifyCalldata(_proof, mintData.root, leaf)) revert NothingToClaim();
 
         unchecked {
-            claimed[msg.sender][_asset] += _amount;
+            customClaims[msg.sender][_listId] += _amount;
             mintData.supply -= _amount;
         }
         _mint(_to, _amount, _referral, minAllocation);
@@ -391,16 +399,58 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
         emit RoyaltyUpdate(_tokenId, _recipient, _royaltyFee);
     }
 
-    function setFreeMintMerkleRoot(bytes32 _root, address _asset, uint40 _amount, uint40 _claimable) external virtual onlyOwner {
-        FreeMint memory oldMintData = freeMintData[_asset];
-        if (oldMintData.issued > _amount && oldMintData.supply < oldMintData.issued - _amount) revert Invalid();
+    // Set arbitrary custom mint lists using merkle trees, can be reconfigured
+    // NOTE: Cannot retroactively reduce mintable amount below minted supply for custom mint list
+    function setCustomMint(bytes32 _root, uint8 _listId, uint40 _amount, uint40 _claimable) external virtual onlyOwner {
+        if (!customMintLists.contains(_listId)) customMintLists.add(_listId);
+        CustomMint memory mintData = customMintData[_listId];
+        // Validate adjustment doesn't decrease amount below custom minted count
+        if (mintData.issued != 0 && mintData.issued - mintData.supply > _amount) revert Invalid();
         uint40 supply;
         unchecked {
-            if (oldMintData.issued > _amount) supply -= oldMintData.issued - _amount;
-            else supply = _amount;
+            // Set amount as supply if new custom mint
+            if (mintData.issued == 0) supply = _amount;
+            // Properly adjust existing supply
+            else {
+                supply = _amount >= mintData.issued ? 
+                    mintData.supply + (_amount - mintData.issued) :
+                    mintData.supply - (mintData.issued - _amount);
+            }
         }
-        freeMintData[_asset] = FreeMint({ root: _root, issued: _amount, claimable: _claimable, supply: supply });
-        emit FreeMintMerkleRoot(_root, _asset, _amount);
+        customMintData[_listId] = CustomMint({ root: _root, issued: _amount, claimable: _claimable, supply: supply });
+        emit CustomMintConfigured(_root, _listId, _amount);
+    }
+
+    // Reduces claimable supply for custom list to 0
+    function disableCustomMint(uint8 _listId) external virtual onlyOwner {
+        customMintData[_listId].claimable = 0;
+        emit CustomMintDisabled(_listId);
+    }
+
+    // Reenables custom mint by setting claimable amount
+    function reenableCustomMint(uint8 _listId, uint40 _claimable) external virtual onlyOwner {
+        uint40 issued = customMintData[_listId].issued;
+        uint40 claimable = _claimable <= issued ? _claimable : issued;
+        customMintData[_listId].claimable = claimable;
+        emit CustomMintReenabled(_listId, claimable);
+    }
+
+    // Completely nukes a custom mint list to minimal state
+    function nukeCustomMint(uint8 _listId) external virtual onlyOwner {
+        CustomMint memory mintData = customMintData[_listId];
+        if (mintData.issued == mintData.supply) {
+            delete customMintData[_listId];
+            if (customMintLists.contains(_listId)) customMintLists.remove(_listId);
+            emit CustomMintDeleted(_listId);
+        } else {
+            customMintData[_listId] = CustomMint({ 
+                root: bytes32(""), 
+                issued: mintData.issued - mintData.supply, 
+                claimable: 0, 
+                supply: 0 
+            });
+            emit CustomMintConfigured(bytes32(""), _listId, 0);
+        }
     }
 
     // Irreversibly disable royalties by resetting tokenId 0 royalty to (address(0), 0) and deleting default royalty info
@@ -492,7 +542,7 @@ contract ERC721M is Ownable, ERC721x, ERC2981, Initializable, ReentrancyGuard {
             }
         }
         // Send any payment to AlignmentVault
-        payable(vault).call{ value: msg.value }("");
+        if (msg.value > 0) payable(vault).call{ value: msg.value }("");
     }
 
     // Check vault inventory for unsafely sent NFTs and add them to internal accounting

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.23;
 
 import "../lib/openzeppelin-contracts/contracts/interfaces/IERC721.sol";
 import "./IERC721x.sol";
